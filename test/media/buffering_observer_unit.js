@@ -11,13 +11,26 @@ describe('BufferingObserver', () => {
   const thresholdAfterStarving = 5;
   const thresholdAfterSatisfied = 2;
 
+  const originalDateNow = Date.now;
+
+  /** @type {!Date} */
+  let baseTime;
+
   /** @type {!shaka.media.BufferingObserver} */
   let controller;
 
   beforeEach(() => {
+    // Any test using Date needs to have Date mocked to avoid flake.
+    baseTime = new Date(2015, 11, 30);
+    Date.now = () => baseTime.getTime();
+
     controller = new BufferingObserver(
         thresholdAfterStarving,
         thresholdAfterSatisfied);
+  });
+
+  afterEach(() => {
+    Date.now = originalDateNow;
   });
 
   describe('when satisfied', () => {
@@ -101,6 +114,7 @@ describe('BufferingObserver', () => {
     beforeEach(() => {
       controller.setState(State.STARVING);
       expect(controller.getState()).toBe(State.STARVING);
+      expect(controller.getLastRebufferTime()).toBe(0);
     });
 
     it('becomes satisfied when enough content is buffered', () => {
@@ -122,6 +136,7 @@ describe('BufferingObserver', () => {
       changed = controller.update(/* lead= */ 5, /* toEnd= */ false);
       expect(changed).toBeTruthy();
       expect(controller.getState()).toBe(State.SATISFIED);
+      expect(controller.getLastRebufferTime()).toBe(Date.now());
     });
 
     it('becomes satisfied when the end is buffered', () => {
@@ -138,6 +153,7 @@ describe('BufferingObserver', () => {
       changed = controller.update(/* lead= */ 3, /* toEnd= */ true);
       expect(changed).toBeTruthy();
       expect(controller.getState()).toBe(State.SATISFIED);
+      expect(controller.getLastRebufferTime()).toBe(Date.now());
     });
   });
 });

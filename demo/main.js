@@ -390,6 +390,21 @@ shakaDemo.Main = class {
     const ui = video['ui'];
     this.player_ = ui.getControls().getPlayer();
 
+    // Change the poster by the APIC ID3 if the stream is audio only.
+    this.player_.addEventListener('metadata', (event) => {
+      if (!this.player_.isAudioOnly()) {
+        return;
+      }
+      const payload = event['payload'];
+      if (payload &&
+          payload['key'] == 'APIC' && payload['mimeType'] == '-->') {
+        const url = payload['data'];
+        if (url && url != video.poster) {
+          video.poster = url;
+        }
+      }
+    });
+
     if (!this.noInput_) {
       // Don't add the close button if in noInput mode; it doesn't make much
       // sense to stop playing a video if you can't start playing other videos.
@@ -738,9 +753,19 @@ shakaDemo.Main = class {
     if (asset.features.includes(shakaAssets.Feature.DOLBY_VISION_3D)) {
       mimeTypes.push('video/mp4; codecs="dvh1.20.01"');
     }
-    const hasSupportedMimeType = mimeTypes.some((type) => {
+    let hasSupportedMimeType = mimeTypes.some((type) => {
       return this.support_.media[type];
     });
+    if (!hasSupportedMimeType &&
+        !(window.ManagedMediaSource || window.MediaSource) &&
+        !!navigator.vendor && navigator.vendor.includes('Apple')) {
+      if (mimeTypes.includes('video/mp4')) {
+        hasSupportedMimeType = true;
+      }
+      if (mimeTypes.includes('video/mp2t')) {
+        hasSupportedMimeType = true;
+      }
+    }
     if (!hasSupportedMimeType) {
       return 'Your browser does not support the required video format.';
     }
@@ -1211,6 +1236,40 @@ shakaDemo.Main = class {
   /**
    * @param {ShakaDemoAssetInfo} asset
    */
+  async preloadAsset(asset) {
+    await this.drmConfiguration_(asset);
+    const manifestUri = await this.getManifestUri_(asset);
+    asset.preloadManager = await this.player_.preload(manifestUri);
+  }
+
+  /**
+   * @param {ShakaDemoAssetInfo} asset
+   * @return {!Promise.<string>}
+   * @private
+   */
+  async getManifestUri_(asset) {
+    let manifestUri = asset.manifestUri;
+    // If we have an offline copy, use that.  If the offlineUri field is null,
+    // we are still downloading it.
+    if (asset.storedContent && asset.storedContent.offlineUri) {
+      manifestUri = asset.storedContent.offlineUri;
+    }
+    // If it's a server side dai asset, request ad-containing manifest
+    // from the ad manager.
+    if (asset.imaAssetKey || (asset.imaContentSrcId && asset.imaVideoId)) {
+      manifestUri = await this.getManifestUriFromAdManager_(asset);
+    }
+    // If it's a MediaTailor asset, request ad-containing manifest
+    // from the ad manager.
+    if (asset.mediaTailorUrl) {
+      manifestUri = await this.getManifestUriFromMediaTailorAdManager_(asset);
+    }
+    return manifestUri;
+  }
+
+  /**
+   * @param {ShakaDemoAssetInfo} asset
+   */
   async loadAsset(asset) {
     try {
       this.selectedAsset = asset;
@@ -1237,28 +1296,20 @@ shakaDemo.Main = class {
       this.controls_.getCastProxy().setAppData({'asset': asset});
 
       // Finally, the asset can be loaded.
-      let manifestUri = asset.manifestUri;
-      // If we have an offline copy, use that.  If the offlineUri field is null,
-      // we are still downloading it.
-      if (asset.storedContent && asset.storedContent.offlineUri) {
-        manifestUri = asset.storedContent.offlineUri;
+      if (asset.preloadManager) {
+        const preloadManager = asset.preloadManager;
+        asset.preloadManager = null;
+        await this.player_.load(preloadManager);
+      } else {
+        const manifestUri = await this.getManifestUri_(asset);
+        await this.player_.load(
+            manifestUri,
+            /* startTime= */ null,
+            asset.mimeType || undefined);
       }
-      // If it's a server side dai asset, request ad-containing manifest
-      // from the ad manager.
-      if (asset.imaAssetKey || (asset.imaContentSrcId && asset.imaVideoId)) {
-        manifestUri = await this.getManifestUriFromAdManager_(asset);
-      }
-      // If it's a MediaTailor asset, request ad-containing manifest
-      // from the ad manager.
-      if (asset.mediaTailorUrl) {
-        manifestUri = await this.getManifestUriFromMediaTailorAdManager_(asset);
-      }
-      await this.player_.load(
-          manifestUri,
-          /* startTime= */ null,
-          asset.mimeType || undefined);
 
-      if (this.player_.isAudioOnly()) {
+      if (this.player_.isAudioOnly() &&
+          this.video_.poster == shakaDemo.Main.mainPoster_) {
         this.video_.poster = shakaDemo.Main.audioOnlyPoster_;
       }
 
@@ -1851,7 +1902,6 @@ shakaDemo.Main.commonDrmSystems = [
   'com.widevine.alpha',
   'com.microsoft.playready',
   'com.apple.fps',
-  'com.adobe.primetime',
   'org.w3.clearkey',
 ];
 

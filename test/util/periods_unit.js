@@ -572,35 +572,84 @@ describe('PeriodCombiner', () => {
     const variants = combiner.getVariants();
     expect(variants.length).toBe(8);
 
-    // v3 should've been filtered out
+    // v1 should've been filtered out
     const videoIds = variants.map((v) => v.video.originalId);
     for (const id of videoIds) {
-      expect(id).not.toBe('v3');
+      expect(id).not.toBe('v1');
     }
 
-    // a2 should've been filtered out
+    // a1 should've been filtered out
     const audioIds = variants.map((v) => v.audio.originalId);
     for (const id of audioIds) {
-      expect(id).not.toBe('a2');
+      expect(id).not.toBe('a1');
     }
 
     const textStreams = combiner.getTextStreams();
     expect(textStreams.length).toBe(3);
 
-    // t3 should've been filtered out
+    // t1 should've been filtered out
     const textIds = textStreams.map((t) => t.originalId);
     for (const id of textIds) {
-      expect(id).not.toBe('t3');
+      expect(id).not.toBe('t1');
     }
 
     const imageStreams = combiner.getImageStreams();
     expect(imageStreams.length).toBe(2);
 
-    // i3 should've been filtered out
+    // i1 should've been filtered out
     const imageIds = imageStreams.map((i) => i.originalId);
     for (const id of imageIds) {
-      expect(id).not.toBe('i3');
+      expect(id).not.toBe('i1');
     }
+  });
+
+  // Regression test for #6054, where we failed on multi-period content with
+  // different numbers of forced-subtitle streams per period.
+  it('Does not combine subtitle and forced-subtitle tracks', async () => {
+    const videoStreams = [makeVideoStream(1280)];
+    const audioStreams = [makeAudioStream('en', /* channels= */ 2)];
+    const imageStreams = [];
+
+    const forcedSubtitle = makeTextStream('de');
+    forcedSubtitle.roles = ['forced-subtitle'];
+    forcedSubtitle.forced = true;
+
+    const subtitle = makeTextStream('de');
+    subtitle.roles = ['subtitle'];
+
+    /** @type {!Array.<shaka.extern.Period>} */
+    const periods = [
+      {
+        id: '1',
+        videoStreams,
+        audioStreams,
+        textStreams: [
+          forcedSubtitle,
+          subtitle,
+        ],
+        imageStreams,
+      },
+      {
+        id: '2',
+        videoStreams,
+        audioStreams,
+        textStreams: [
+          subtitle,
+        ],
+        imageStreams,
+      },
+      {
+        id: '3',
+        videoStreams,
+        audioStreams,
+        textStreams: [],
+        imageStreams,
+      },
+    ];
+
+    await combiner.combinePeriods(periods, /* isDynamic= */ true);
+    const textStreams = combiner.getTextStreams();
+    expect(textStreams.every((s) => s.roles.length === 1)).toBe(true);
   });
 
   // Regression test for #3383, where we failed on multi-period content with
@@ -1008,6 +1057,70 @@ describe('PeriodCombiner', () => {
 
     const audio2 = variants[1].audio;
     expect(audio2.roles).toEqual(['description']);
+    expect(audio2.originalId).toBe('2,4');
+  });
+
+  it('Matches streams with labels', async () => {
+    const stream1 = makeAudioStream('en', /* channels= */ 2);
+    stream1.originalId = '1';
+    stream1.bandwidth = 129597;
+    stream1.codecs = 'mp4a.40.2';
+
+    const stream2 = makeAudioStream('en', /* channels= */ 2);
+    stream2.originalId = '2';
+    stream2.bandwidth = 129637;
+    stream2.codecs = 'mp4a.40.2';
+    stream2.label = 'description';
+
+    const stream3 = makeAudioStream('en', /* channels= */ 2);
+    stream3.originalId = '3';
+    stream3.bandwidth = 131037;
+    stream3.codecs = 'mp4a.40.2';
+
+    const stream4 = makeAudioStream('en', /* channels= */ 2);
+    stream4.originalId = '4';
+    stream4.bandwidth = 131034;
+    stream4.codecs = 'mp4a.40.2';
+    stream4.label = 'description';
+
+    /** @type {!Array.<shaka.extern.Period>} */
+    const periods = [
+      {
+        id: '0',
+        videoStreams: [
+          makeVideoStream(1080),
+        ],
+        audioStreams: [
+          stream1,
+          stream2,
+        ],
+        textStreams: [],
+        imageStreams: [],
+      },
+      {
+        id: '1',
+        videoStreams: [
+          makeVideoStream(1080),
+        ],
+        audioStreams: [
+          stream3,
+          stream4,
+        ],
+        textStreams: [],
+        imageStreams: [],
+      },
+    ];
+
+    await combiner.combinePeriods(periods, /* isDynamic= */ true);
+    const variants = combiner.getVariants();
+    expect(variants.length).toBe(2);
+    // We can use the originalId field to see what each track is composed of.
+    const audio1 = variants[0].audio;
+    expect(audio1.label).toBe(null);
+    expect(audio1.originalId).toBe('1,3');
+
+    const audio2 = variants[1].audio;
+    expect(audio2.label).toBe('description');
     expect(audio2.originalId).toBe('2,4');
   });
 

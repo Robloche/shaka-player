@@ -21,9 +21,7 @@ shaka.extern = {};
  *   base: string,
  *   buffered: string,
  *   played: string,
- *   adBreaks: string,
- *   chapterMarks: string,
- *   chapterLabels: string
+ *   adBreaks: string
  * }}
  *
  * @property {string} base
@@ -38,13 +36,6 @@ shaka.extern = {};
  * @property {string} adBreaks
  *   The CSS background color applied to the portion of the seek bar showing
  *   when the ad breaks are scheduled to occur on the timeline.
- * @property {string} chapterMarks
- *   The CSS border color applied to sections of the seek bar showing
- *   when the chapters start and end on the timeline.
- *   Defaults to dark grey rgb(27, 27, 27).
- * @property {string} chapterLabels
- *   The CSS text color applied to the chapter labels that appear above the
- *   seek bar on hover. Defaults to white rgb(255, 255, 255).
  * @exportDoc
  */
 shaka.extern.UISeekBarColors;
@@ -87,6 +78,7 @@ shaka.extern.UIVolumeBarColors;
  *   seekBarColors: shaka.extern.UISeekBarColors,
  *   volumeBarColors: shaka.extern.UIVolumeBarColors,
  *   trackLabelFormat: shaka.ui.Overlay.TrackLabelFormat,
+ *   textTrackLabelFormat: shaka.ui.Overlay.TrackLabelFormat,
  *   fadeDelay: number,
  *   doubleClickForFullscreen: boolean,
  *   singleClickForPlayAndPause: boolean,
@@ -156,8 +148,18 @@ shaka.extern.UIVolumeBarColors;
  *   colors used in the linear gradient constructed in JavaScript, since you
  *   cannot do this in pure CSS.
  * @property {shaka.ui.Overlay.TrackLabelFormat} trackLabelFormat
- *   An enum that determines what is shown in the labels for text track and
- *   audio variant selection.
+ *   An enum that determines what is shown in the labels for audio variant
+ *   selection.
+ *   LANGUAGE means that only the language of the item is shown.
+ *   ROLE means that only the role of the item is shown.
+ *   LANGUAGE_ROLE means both language and role are shown, or just language if
+ *   there is no role.
+ *   LABEL means the non-standard DASH "label" attribute or the standard DASH
+ *   "Label" element or the HLS "NAME" attribute are shown.
+ *   Defaults to LANGUAGE.
+ * @property {shaka.ui.Overlay.TrackLabelFormat} textTrackLabelFormat
+ *   An enum that determines what is shown in the labels for text track
+ *   selection.
  *   LANGUAGE means that only the language of the item is shown.
  *   ROLE means that only the role of the item is shown.
  *   LANGUAGE_ROLE means both language and role are shown, or just language if
@@ -485,4 +487,28 @@ shaka.extern.IUISeekBar.Factory = class {
    * @return {!shaka.extern.IUISeekBar}
    */
   create(rootElement, controls) {}
+};
+
+/**
+ * @interface
+ * @exportDoc
+ */
+shaka.extern.IUIPlayButton = class {
+  /**
+   * @param {!HTMLElement} parent
+   * @param {!shaka.ui.Controls} controls
+   */
+  constructor(parent, controls) {
+    /**
+     * @protected {!HTMLButtonElement}
+     * @exportDoc
+     */
+    this.button;
+  }
+
+  /** @return {boolean} */
+  isPaused() {}
+
+  /** @return {boolean} */
+  isEnded() {}
 };

@@ -45,6 +45,7 @@ for the up-to-date list of maintained branches of Shaka Player.
 |Chromecast².  | -        | -       | -       | -       | -        | -         | -          | -      |**Y**|
 |Tizen TV³     | -        | -       | -       | -       | -        | -         | -          | -      |**Y**|
 |WebOS⁶        | -        | -       | -       | -       | -        | -         | -          | -      |**Y**|
+|Hisense⁷      | -        | -       | -       | -       | -        | -         | -          | -      |**Y**|
 |Xbox One      | -        | -       | -       | -       | -        | -         | -          | -      |**Y**|
 |Playstation 4⁷| -        | -       | -       | -       | -        | -         | -          | -      |**Y**|
 |Playstation 5⁷| -        | -       | -       | -       | -        | -         | -          | -      |**Y**|
@@ -131,6 +132,8 @@ HLS features supported:
  - CEA-608/708 captions
  - Encrypted content with PlayReady and Widevine
  - Encrypted content with FairPlay (Safari on macOS and iOS 9+ only)
+ - AES-128, AES-256 and AES-256-CTR support on browsers with Web Crypto API support
+ - SAMPLE-AES and SAMPLE-AES-CTR (identity) support on browsers with ClearKey support
  - Key rotation
  - Raw AAC, MP3, AC-3 and EC-3 (without an MP4 container)
  - I-frame-only playlists with mjpg codec for thumbnails
@@ -168,18 +171,19 @@ MSS features **not** supported:
 
 ## DRM support matrix
 
-|Browser   |Widevine  |PlayReady|FairPlay |ClearKey⁶ |
-|:--------:|:--------:|:-------:|:-------:|:--------:|
-|Chrome¹   |**Y**     | -       | -       |**Y**     |
-|Firefox²  |**Y**     | -       | -       |**Y**     |
-|Edge³     | -        |**Y**    | -       | -        |
-|Edge Chromium|**Y**     |**Y**    | -       |**Y**     |
-|Safari    | -        | -       |**Y**    | -        |
-|Opera     |untested⁵ | -       | -       |untested⁵ |
-|Chromecast|**Y**     |**Y**    | -       |untested⁵ |
-|Tizen TV  |**Y**     |**Y**    | -       |untested⁵ |
-|WebOS⁷    |untested⁷ |untested⁷| -       |untested⁷ |
-|Xbox One  | -        |**Y**    | -       | -        |
+|Browser       |Widevine  |PlayReady|FairPlay |ClearKey⁶ |
+|:------------:|:--------:|:-------:|:-------:|:--------:|
+|Chrome¹       |**Y**     | -       | -       |**Y**     |
+|Firefox²      |**Y**     | -       | -       |**Y**     |
+|Edge³         | -        |**Y**    | -       | -        |
+|Edge Chromium |**Y**     |**Y**    | -       |**Y**     |
+|Safari        | -        | -       |**Y**    | -        |
+|Opera         |untested⁵ | -       | -       |untested⁵ |
+|Chromecast    |**Y**     |**Y**    | -       |untested⁵ |
+|Tizen TV      |**Y**     |**Y**    | -       |untested⁵ |
+|WebOS⁷        |untested⁷ |untested⁷| -       |untested⁷ |
+|Hisense⁷      |untested⁷ |untested⁷| -       |untested⁷ |
+|Xbox One      | -        |**Y**    | -       | -        |
 |Playstation 4⁷| -        |untested⁷| -       |untested⁷ |
 |Playstation 5⁷| -        |untested⁷| -       |untested⁷ |
 
@@ -208,7 +212,7 @@ NOTES:
 NOTES:
  - ¹: By default, FairPlay is handled using Apple's native HLS player, when on
    Safari. We do support FairPlay through MSE/EME, however. See the
-   `streaming.useNativeHlsOnSafari` configuration value.
+   `streaming.useNativeHlsForFairPlay` configuration value.
 
 
 ## Media container and subtitle support
@@ -303,7 +307,7 @@ Shaka Player supports:
 
 
 ## Content Steering support
-Shaka Player supports Content Steering (v1) in DASH.
+Shaka Player supports Content Steering (v1) in DASH and HLS.
 
 Content Steering features supported:
 - TTL, if missing, the default value is 300 seconds.
@@ -317,6 +321,8 @@ Content Steering features **not** supported:
 ## Documentation & Important Links ##
 
  * [Demo](https://shaka-player-demo.appspot.com)([sources](demo/))
+ * [Nightly Demo](https://nightly-dot-shaka-player-demo.appspot.com)
+ * [Demo index](https://index-dot-shaka-player-demo.appspot.com)
  * [API documentation](https://shaka-player-demo.appspot.com/docs/api/index.html)
  * [Tutorials](https://shaka-player-demo.appspot.com/docs/api/tutorial-welcome.html)
  * [Hosted builds on Google Hosted Libraries](https://developers.google.com/speed/libraries/#shaka-player)

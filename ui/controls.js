@@ -650,6 +650,9 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
    * @export
    */
   isPiPAllowed() {
+    if (this.castProxy_.isCasting()) {
+      return false;
+    }
     if ('documentPictureInPicture' in window &&
         this.config_.preferDocumentPictureInPicture) {
       const video = /** @type {HTMLVideoElement} */(this.localVideo_);
@@ -1446,7 +1449,8 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
       case 'ArrowLeft':
         // If it's not focused on the volume bar, move the seek time backward
         // for a few sec. Otherwise, the volume will be adjusted automatically.
-        if (this.seekBar_ && !isVolumeBar && keyboardSeekDistance > 0) {
+        if (this.seekBar_ && isSeekBar && !isVolumeBar &&
+            keyboardSeekDistance > 0) {
           event.preventDefault();
           this.seek_(this.seekBar_.getValue() - keyboardSeekDistance);
         }
@@ -1454,7 +1458,8 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
       case 'ArrowRight':
         // If it's not focused on the volume bar, move the seek time forward
         // for a few sec. Otherwise, the volume will be adjusted automatically.
-        if (this.seekBar_ && !isVolumeBar && keyboardSeekDistance > 0) {
+        if (this.seekBar_ && isSeekBar && !isVolumeBar &&
+            keyboardSeekDistance > 0) {
           event.preventDefault();
           this.seek_(this.seekBar_.getValue() + keyboardSeekDistance);
         }
@@ -1695,6 +1700,21 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
    */
   onMouseDown_() {
     this.eventManager_.unlisten(window, 'mousedown');
+  }
+
+  /**
+   * @export
+   */
+  showUI() {
+    const event = new Event('mousemove', {bubbles: false, cancelable: false});
+    this.onMouseMove_(event);
+  }
+
+  /**
+   * @export
+   */
+  hideUI() {
+    this.onMouseLeave_();
   }
 
   /**

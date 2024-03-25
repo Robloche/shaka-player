@@ -38,6 +38,10 @@ describe('MediaSourceEngine', () => {
   const ContentType = shaka.util.ManifestParserUtils.ContentType;
 
   const originalIsTypeSupported = window.MediaSource.isTypeSupported;
+  let originalIsTypeSupportedManaged;
+  if (window.ManagedMediaSource) {
+    originalIsTypeSupportedManaged = window.ManagedMediaSource.isTypeSupported;
+  }
   const originalTextEngine = shaka.text.TextEngine;
   const originalCreateMediaSource =
       // eslint-disable-next-line no-restricted-syntax
@@ -98,10 +102,20 @@ describe('MediaSourceEngine', () => {
       const type = mimeType.split('/')[0];
       return type == 'video' || type == 'audio';
     };
+    if (window.ManagedMediaSource) {
+      window.ManagedMediaSource.isTypeSupported = (mimeType) => {
+        const type = mimeType.split('/')[0];
+        return type == 'video' || type == 'audio';
+      };
+    }
   });
 
   afterAll(() => {
     window.MediaSource.isTypeSupported = originalIsTypeSupported;
+    if (window.ManagedMediaSource) {
+      window.ManagedMediaSource.isTypeSupported =
+          originalIsTypeSupportedManaged;
+    }
     shaka.transmuxer.TransmuxerEngine.findTransmuxer =
         originalFindTransmuxer;
     shaka.transmuxer.TransmuxerEngine.convertCodecs =
@@ -206,6 +220,7 @@ describe('MediaSourceEngine', () => {
       shaka.media.MediaSourceEngine.createObjectURL;
     const originalRevokeObjectURL = window.URL.revokeObjectURL;
     const originalMediaSource = window.MediaSource;
+    const originalManagedMediaSource = window.ManagedMediaSource;
     /** @type {jasmine.Spy} */
     let createObjectURLSpy;
     /** @type {jasmine.Spy} */
@@ -237,6 +252,9 @@ describe('MediaSourceEngine', () => {
         return mockMediaSource;
       });
       window.MediaSource = Util.spyFunc(mediaSourceSpy);
+      if (window.ManagedMediaSource) {
+        window.ManagedMediaSource = Util.spyFunc(mediaSourceSpy);
+      }
 
       await mediaSourceEngine.destroy();
     });
@@ -244,6 +262,7 @@ describe('MediaSourceEngine', () => {
     afterAll(() => {
       shaka.media.MediaSourceEngine.createObjectURL = originalCreateObjectURL;
       window.MediaSource = originalMediaSource;
+      window.ManagedMediaSource = originalManagedMediaSource;
       window.URL.revokeObjectURL = originalRevokeObjectURL;
     });
 
@@ -270,7 +289,11 @@ describe('MediaSourceEngine', () => {
           video,
           new shaka.test.FakeTextDisplayer());
 
-      expect(mockMediaSource.addEventListener).toHaveBeenCalledTimes(1);
+      if (window.ManagedMediaSource) {
+        expect(mockMediaSource.addEventListener).toHaveBeenCalledTimes(3);
+      } else {
+        expect(mockMediaSource.addEventListener).toHaveBeenCalledTimes(1);
+      }
       expect(mockMediaSource.addEventListener.calls.mostRecent().args[0])
           .toBe('sourceopen');
       expect(typeof onSourceOpenListener).toBe(typeof Function);
@@ -1224,7 +1247,7 @@ describe('MediaSourceEngine', () => {
             const callback = addListenOnceSpy.calls.argsFor(0)[2];
             callback();
             expect(initSourceBufferSpy).toHaveBeenCalled();
-            expect(addListenOnceSpy.calls.argsFor(0)[1]).toBe('canplay');
+            expect(addListenOnceSpy.calls.argsFor(0)[1]).toBe('canplaythrough');
             expect(video.autoplay).toBe(true);
             expect(playSpy).not.toHaveBeenCalled();
           } finally {
@@ -1291,7 +1314,7 @@ describe('MediaSourceEngine', () => {
             const callback = addListenOnceSpy.calls.argsFor(0)[2];
             callback();
             expect(initSourceBufferSpy).toHaveBeenCalled();
-            expect(addListenOnceSpy.calls.argsFor(0)[1]).toBe('canplay');
+            expect(addListenOnceSpy.calls.argsFor(0)[1]).toBe('canplaythrough');
             expect(video.autoplay).toBe(false);
             expect(playSpy).toHaveBeenCalled();
           } finally {
@@ -1473,7 +1496,7 @@ describe('MediaSourceEngine', () => {
       mockTextEngine = jasmine.createSpyObj('TextEngine', [
         'initParser', 'destroy', 'appendBuffer', 'remove', 'setTimestampOffset',
         'setAppendWindow', 'bufferStart', 'bufferEnd', 'bufferedAheadOf',
-        'storeAndAppendClosedCaptions',
+        'storeAndAppendClosedCaptions', 'setModifyCueCallback',
       ]);
 
       const resolve = () => Promise.resolve();

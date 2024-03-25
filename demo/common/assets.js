@@ -42,6 +42,7 @@ shakaAssets.Source = {
   AWS: 'AWS',
   BRIGHTCOVE: 'Brightcove',
   BROADPEAK: 'Broadpeak',
+  EZDRM: 'EZDRM',
 };
 
 
@@ -513,6 +514,15 @@ shakaAssets.testAssets = [
       /* name= */ 'Heliocentrism (multicodec, multiperiod)',
       /* iconUri= */ 'https://storage.googleapis.com/shaka-asset-icons/heliocentricism.png',
       /* manifestUri= */ 'https://storage.googleapis.com/shaka-demo-assets/heliocentrism/heliocentrism.mpd',
+      /* source= */ shakaAssets.Source.SHAKA)
+      .addFeature(shakaAssets.Feature.DASH)
+      .addFeature(shakaAssets.Feature.MP4)
+      .addFeature(shakaAssets.Feature.WEBM)
+      .addFeature(shakaAssets.Feature.OFFLINE),
+  new ShakaDemoAssetInfo(
+      /* name= */ 'Heliocentrism (multiperiod with forced mimeType/codec changes)',
+      /* iconUri= */ 'https://storage.googleapis.com/shaka-asset-icons/heliocentricism.png',
+      /* manifestUri= */ 'https://storage.googleapis.com/shaka-demo-assets/heliocentrism-mixed-codec/heliocentrism.mpd',
       /* source= */ shakaAssets.Source.SHAKA)
       .addFeature(shakaAssets.Feature.DASH)
       .addFeature(shakaAssets.Feature.MP4)
@@ -1433,10 +1443,12 @@ shakaAssets.testAssets = [
       /* iconUri= */ 'https://reference.dashif.org/dash.js/latest/samples/lib/img/mss-1.jpg',
       /* manifestUri= */ 'https://test.playready.microsoft.com/smoothstreaming/SSWSS720H264PR/SuperSpeedway_720.ism/Manifest',
       /* source= */ shakaAssets.Source.MICROSOFT)
+      .addKeySystem(shakaAssets.KeySystem.PLAYREADY)
       .addFeature(shakaAssets.Feature.MSS)
       .addFeature(shakaAssets.Feature.HIGH_DEFINITION)
       .addFeature(shakaAssets.Feature.MP4)
-      .addLicenseServer('com.microsoft.playready', 'https://test.playready.microsoft.com/service/rightsmanager.asmx?cfg=(persist:false,sl:150)'),
+      .addLicenseServer('com.microsoft.playready', 'https://test.playready.microsoft.com/service/rightsmanager.asmx?cfg=(persist:false,sl:150)')
+      .setMimeType('application/vnd.ms-sstr+xml'),
   // }}}
 
   // MPEG-5 LCEVC assets {{{
@@ -1453,9 +1465,6 @@ shakaAssets.testAssets = [
       .addFeature(shakaAssets.Feature.LCEVC)
       .addDescription('LCEVC Enhanced eSports content selection.')
       .setExtraConfig({
-        streaming: {
-          useNativeHlsOnSafari: false,
-        },
         mediaSource: {
           forceTransmux: true,
         },
@@ -1495,9 +1504,6 @@ shakaAssets.testAssets = [
       .addFeature(shakaAssets.Feature.OFFLINE)
       .addFeature(shakaAssets.Feature.LCEVC)
       .setExtraConfig({
-        streaming: {
-          useNativeHlsOnSafari: false,
-        },
         mediaSource: {
           forceTransmux: true,
         },
@@ -1519,9 +1525,6 @@ shakaAssets.testAssets = [
       .addFeature(shakaAssets.Feature.OFFLINE)
       .addFeature(shakaAssets.Feature.LCEVC)
       .setExtraConfig({
-        streaming: {
-          useNativeHlsOnSafari: false,
-        },
         mediaSource: {
           forceTransmux: true,
         },
@@ -1643,6 +1646,29 @@ shakaAssets.testAssets = [
       .addFeature(shakaAssets.Feature.HIGH_DEFINITION)
       .addFeature(shakaAssets.Feature.MP4)
       .addFeature(shakaAssets.Feature.LIVE),
+  // }}}
+
+  // EZDRM assets {{{
+  /* EZDRM Contents */
+  new ShakaDemoAssetInfo(
+      /* name= */ 'Big Buck Bunny (FairPlay)',
+      /* iconUri= */ 'https://storage.googleapis.com/shaka-asset-icons/big_buck_bunny.png',
+      /* manifestUri= */ 'https://na-fps.ezdrm.com/demo/ezdrm/master.m3u8',
+      /* source= */ shakaAssets.Source.EZDRM)
+      .addKeySystem(shakaAssets.KeySystem.FAIRPLAY)
+      .addFeature(shakaAssets.Feature.HLS)
+      .addFeature(shakaAssets.Feature.HIGH_DEFINITION)
+      .addFeature(shakaAssets.Feature.MP4)
+      .addLicenseServer('com.apple.fps', 'https://fps.ezdrm.com/api/licenses/b99ed9e5-c641-49d1-bfa8-43692b686ddb')
+      .setExtraConfig({
+        drm: {
+          advanced: {
+            'com.apple.fps': {
+              serverCertificateUri: 'https://fps.ezdrm.com/demo/video/eleisure.cer',
+            },
+          },
+        },
+      }),
   // }}}
 ];
 /* eslint-enable max-len */
