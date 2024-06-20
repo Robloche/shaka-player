@@ -236,6 +236,25 @@ describe('Player', () => {
       }
     });
 
+    it('destroys drmEngine before mediaSourceEngine with webkit polyfill',
+        async () => {
+          spyOn(shaka.util.Platform, 'isMediaKeysPolyfilled')
+              .and.returnValue(true);
+          goog.asserts.assert(manifest, 'Manifest should be non-null');
+
+          Util.funcSpy(drmEngine.destroy).and.callFake(async () => {
+            expect(mediaSourceEngine.destroy).not.toHaveBeenCalled();
+            await Util.shortDelay();
+            expect(mediaSourceEngine.destroy).not.toHaveBeenCalled();
+          });
+
+          await player.load(fakeManifestUri, 0, fakeMimeType);
+          await player.destroy();
+
+          expect(drmEngine.destroy).toHaveBeenCalled();
+          expect(mediaSourceEngine.destroy).toHaveBeenCalled();
+        });
+
     it('destroys mediaSourceEngine before drmEngine', async () => {
       goog.asserts.assert(manifest, 'Manifest should be non-null');
 
@@ -689,6 +708,7 @@ describe('Player', () => {
         video.canPlayType.and.returnValue('maybe');
         spyOn(shaka.util.Platform, 'anyMediaElement').and.returnValue(video);
         spyOn(shaka.util.Platform, 'supportsMediaSource').and.returnValue(true);
+        spyOn(shaka.util.Platform, 'isApple').and.returnValue(false);
         // Make sure player.load() resolves for src=
         spyOn(shaka.util.MediaReadyState, 'waitForReadyState').and.callFake(
             (mediaElement, readyState, eventManager, callback) => {
@@ -698,6 +718,7 @@ describe('Player', () => {
         player.configure({
           streaming: {
             preferNativeHls: true,
+            useNativeHlsOnSafari: false,
           },
         });
 
@@ -709,10 +730,12 @@ describe('Player', () => {
       it('does not apply to non-HLS streams', async () => {
         video.canPlayType.and.returnValue('maybe');
         spyOn(shaka.util.Platform, 'supportsMediaSource').and.returnValue(true);
+        spyOn(shaka.util.Platform, 'isApple').and.returnValue(false);
 
         player.configure({
           streaming: {
             preferNativeHls: true,
+            useNativeHlsOnSafari: false,
           },
         });
 
@@ -747,6 +770,17 @@ describe('Player', () => {
       expect(config1.streaming.bufferBehind).not.toBe(
           config2.streaming.bufferBehind);
     });
+  });
+
+  it('getNonDefaultConfiguration', () => {
+    player.configure({
+      drm: {
+        retryParameters: {backoffFactor: 5},
+      },
+    });
+    const nonDefaultConfiguration = player.getNonDefaultConfiguration();
+    const config = player.getConfiguration();
+    expect(nonDefaultConfiguration).not.toBe(config);
   });
 
   describe('configure', () => {
@@ -1211,11 +1245,15 @@ describe('Player', () => {
           inaccurateManifestTolerance: 1,
           segmentPrefetchLimit: 1,
           updateIntervalSeconds: 10,
+          maxDisabledTime: 10,
           retryParameters: {
             baseDelay: 2000,
           },
         },
         manifest: {
+          dash: {
+            autoCorrectDrift: true,
+          },
           retryParameters: {
             baseDelay: 2000,
           },
@@ -1232,8 +1270,11 @@ describe('Player', () => {
       expect(player.getConfiguration().streaming.segmentPrefetchLimit).toBe(1);
       expect(player.getConfiguration().streaming.updateIntervalSeconds)
           .toBe(10);
+      expect(player.getConfiguration().streaming.maxDisabledTime).toBe(10);
       expect(player.getConfiguration().streaming.retryParameters.baseDelay)
           .toBe(2000);
+      expect(player.getConfiguration().manifest.dash.autoCorrectDrift)
+          .toBe(true);
       expect(player.getConfiguration().manifest.retryParameters.baseDelay)
           .toBe(2000);
       expect(player.getConfiguration().drm.retryParameters.baseDelay)
@@ -1250,8 +1291,11 @@ describe('Player', () => {
       expect(player.getConfiguration().streaming.segmentPrefetchLimit).toBe(2);
       expect(player.getConfiguration().streaming.updateIntervalSeconds)
           .toBe(0.1);
+      expect(player.getConfiguration().streaming.maxDisabledTime).toBe(1);
       expect(player.getConfiguration().streaming.retryParameters.baseDelay)
           .toBe(100);
+      expect(player.getConfiguration().manifest.dash.autoCorrectDrift)
+          .toBe(false);
       expect(player.getConfiguration().manifest.retryParameters.baseDelay)
           .toBe(100);
       expect(player.getConfiguration().drm.retryParameters.baseDelay)
@@ -1495,6 +1539,25 @@ describe('Player', () => {
           variant.addExistingStream(2);  // video
           variant.addExistingStream(6);  // audio
         });
+        manifest.addVariant(108, (variant) => {  // spanish ec-3, low res
+          variant.language = 'es';
+          variant.bandwidth = 1100;
+          variant.addExistingStream(1);  // video
+          variant.addAudio(7, (stream) => {
+            stream.mime('audio/mp4', 'ec-3');
+            stream.originalId = 'audio-es-ec3';
+            stream.bandwidth = 100;
+            stream.channelsCount = 2;
+            stream.audioSamplingRate = 48000;
+            // stream.codecs = 'ec-3';
+          });
+        });
+        manifest.addVariant(109, (variant) => {  // spanish ec-3, high res
+          variant.language = 'es';
+          variant.bandwidth = 2100;
+          variant.addExistingStream(2);  // video
+          variant.addExistingStream(7);  // audio
+        });
 
         // All text tracks should remain, even with different MIME types.
         manifest.addTextStream(50, (stream) => {
@@ -1553,6 +1616,7 @@ describe('Player', () => {
           frameRate: 1000000 / 42000,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1592,6 +1656,7 @@ describe('Player', () => {
           frameRate: 24,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1631,6 +1696,7 @@ describe('Player', () => {
           frameRate: 1000000 / 42000,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1670,6 +1736,7 @@ describe('Player', () => {
           frameRate: 24,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1709,6 +1776,7 @@ describe('Player', () => {
           frameRate: 1000000 / 42000,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1748,6 +1816,7 @@ describe('Player', () => {
           frameRate: 24,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1787,6 +1856,7 @@ describe('Player', () => {
           frameRate: 1000000 / 42000,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1826,6 +1896,7 @@ describe('Player', () => {
           frameRate: 24,
           pixelAspectRatio: '59:54',
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           mimeType: 'video/mp4',
           audioMimeType: 'audio/mp4',
@@ -1846,6 +1917,86 @@ describe('Player', () => {
           audioBandwidth: 100,
           videoBandwidth: 2000,
           originalAudioId: 'audio-es',
+          originalVideoId: 'video-2kbps',
+          originalTextId: null,
+          originalImageId: null,
+          accessibilityPurpose: undefined,
+        },
+        {
+          id: 108,
+          active: false,
+          type: 'variant',
+          bandwidth: 1100,
+          language: 'es',
+          originalLanguage: 'es',
+          label: null,
+          kind: null,
+          width: 100,
+          height: 200,
+          frameRate: 1000000 / 42000,
+          pixelAspectRatio: '59:54',
+          hdr: null,
+          colorGamut: null,
+          videoLayout: null,
+          mimeType: 'video/mp4',
+          audioMimeType: 'audio/mp4',
+          videoMimeType: 'video/mp4',
+          codecs: 'avc1.4d401f, ec-3',
+          audioCodec: 'ec-3',
+          videoCodec: 'avc1.4d401f',
+          primary: false,
+          roles: ['main'],
+          audioRoles: [],
+          forced: false,
+          videoId: 1,
+          audioId: 7,
+          channelsCount: 2,
+          audioSamplingRate: 48000,
+          spatialAudio: false,
+          tilesLayout: null,
+          audioBandwidth: 100,
+          videoBandwidth: 1000,
+          originalAudioId: 'audio-es-ec3',
+          originalVideoId: 'video-1kbps',
+          originalTextId: null,
+          originalImageId: null,
+          accessibilityPurpose: undefined,
+        },
+        {
+          id: 109,
+          active: false,
+          type: 'variant',
+          bandwidth: 2100,
+          language: 'es',
+          originalLanguage: 'es',
+          label: null,
+          kind: null,
+          width: 200,
+          height: 400,
+          frameRate: 24,
+          pixelAspectRatio: '59:54',
+          hdr: null,
+          colorGamut: null,
+          videoLayout: null,
+          mimeType: 'video/mp4',
+          audioMimeType: 'audio/mp4',
+          videoMimeType: 'video/mp4',
+          codecs: 'avc1.4d401f, ec-3',
+          audioCodec: 'ec-3',
+          videoCodec: 'avc1.4d401f',
+          primary: false,
+          roles: [],
+          audioRoles: [],
+          forced: false,
+          videoId: 2,
+          audioId: 7,
+          channelsCount: 2,
+          audioSamplingRate: 48000,
+          spatialAudio: false,
+          tilesLayout: null,
+          audioBandwidth: 100,
+          videoBandwidth: 2000,
+          originalAudioId: 'audio-es-ec3',
           originalVideoId: 'video-2kbps',
           originalTextId: null,
           originalImageId: null,
@@ -1884,6 +2035,7 @@ describe('Player', () => {
           frameRate: null,
           pixelAspectRatio: null,
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           videoId: null,
           audioId: null,
@@ -1923,6 +2075,7 @@ describe('Player', () => {
           frameRate: null,
           pixelAspectRatio: null,
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           videoId: null,
           audioId: null,
@@ -1962,6 +2115,7 @@ describe('Player', () => {
           frameRate: null,
           pixelAspectRatio: null,
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           videoId: null,
           audioId: null,
@@ -2004,6 +2158,7 @@ describe('Player', () => {
           frameRate: null,
           pixelAspectRatio: null,
           hdr: null,
+          colorGamut: null,
           videoLayout: null,
           videoId: null,
           audioId: null,
@@ -2135,6 +2290,22 @@ describe('Player', () => {
       expect(args[0].audio.roles).toContain('commentary');
       expect(args[1]).toBe(true);
       expect(getActiveVariantTrack().roles).toContain('commentary');
+    });
+
+    it('selectAudioLanguage() ignores unplayable variants', () => {
+      player.configure({
+        restrictions: {minChannelsCount: 6},
+      });
+      player.selectAudioLanguage('es');
+      expect(getActiveVariantTrack().channelsCount).toBe(6);
+    });
+
+    it('selectAudioLanguage() respects selected audio codec', () => {
+      player.selectAudioLanguage('es', '', 0, 0, 'mp4a.40.2');
+      expect(getActiveVariantTrack().audioCodec).toBe('mp4a.40.2');
+
+      player.selectAudioLanguage('es', '', 0, 0, 'ec-3');
+      expect(getActiveVariantTrack().audioCodec).toBe('ec-3');
     });
 
     it('selectAudioLanguage() applies role only to audio', () => {
@@ -3361,6 +3532,30 @@ describe('Player', () => {
       expect(tracks.length).toBe(2);
     });
 
+    it('doesn\'t remove when using empty map key status event', async () => {
+      manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+        manifest.addVariant(0, (variant) => {
+          variant.addVideo(1, (stream) => {
+            stream.keyIds = new Set(['abc']);
+            stream.size(10, 10);
+          });
+        });
+        manifest.addVariant(2, (variant) => {
+          variant.addVideo(3, (stream) => {
+            stream.size(20, 20);
+          });
+        });
+      });
+
+      await player.load(fakeManifestUri, 0, fakeMimeType);
+      expect(player.getVariantTracks().length).toBe(2);
+
+      // Empty key status event map ID.
+      onKeyStatus({'': 'usable'});
+
+      expect(player.getVariantTracks().length).toBe(2);
+    });
+
     it('doesn\'t remove when using synthetic key status', async () => {
       manifest = shaka.test.ManifestGenerator.generate((manifest) => {
         manifest.addVariant(0, (variant) => {
@@ -3489,7 +3684,7 @@ describe('Player', () => {
       manifest = shaka.test.ManifestGenerator.generate((manifest) => {
         manifest.addVariant(0, (variant) => {
           variant.addVideo(1, (stream) => {
-            stream.size(900, 900);
+            stream.size(500, 500);
           });
         });
         manifest.addVariant(1, (variant) => {
@@ -3507,7 +3702,7 @@ describe('Player', () => {
       await player.load(fakeManifestUri, 0, fakeMimeType);
       expect(player.getVariantTracks().length).toBe(3);
 
-      player.configure({restrictions: {minPixels: 100, maxPixels: 800 * 800}});
+      player.configure({restrictions: {minPixels: 100, maxPixels: 400 * 400}});
 
       const tracks = player.getVariantTracks();
       expect(tracks.length).toBe(1);
@@ -3523,7 +3718,7 @@ describe('Player', () => {
         });
         manifest.addVariant(1, (variant) => {
           variant.addVideo(2, (stream) => {
-            stream.size(1500, 200);
+            stream.size(1000, 200);
           });
         });
         manifest.addVariant(2, (variant) => {
@@ -3536,7 +3731,7 @@ describe('Player', () => {
       await player.load(fakeManifestUri, 0, fakeMimeType);
       expect(player.getVariantTracks().length).toBe(3);
 
-      player.configure({restrictions: {minWidth: 100, maxWidth: 1000}});
+      player.configure({restrictions: {minWidth: 100, maxWidth: 500}});
 
       const tracks = player.getVariantTracks();
       expect(tracks.length).toBe(1);
@@ -3553,7 +3748,7 @@ describe('Player', () => {
 
         manifest.addVariant(1, (variant) => {
           variant.addVideo(2, (stream) => {
-            stream.size(1024, 1024);
+            stream.size(500, 500);
           });
         });
 
@@ -3567,7 +3762,7 @@ describe('Player', () => {
       await player.load(fakeManifestUri, 0, fakeMimeType);
       expect(player.getVariantTracks().length).toBe(3);
 
-      player.configure({restrictions: {minHeight: 100, maxHeight: 1000}});
+      player.configure({restrictions: {minHeight: 100, maxHeight: 400}});
 
       const tracks = player.getVariantTracks();
       expect(tracks.length).toBe(1);
@@ -3599,6 +3794,38 @@ describe('Player', () => {
       expect(player.getVariantTracks().length).toBe(3);
 
       player.configure({restrictions: {minFrameRate: 20, maxFrameRate: 40}});
+
+      const tracks = player.getVariantTracks();
+      expect(tracks.length).toBe(1);
+      expect(tracks[0].id).toBe(1);
+    });
+
+    it('removes based on channelsCount', async () => {
+      manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+        manifest.addVariant(0, (variant) => {
+          variant.addAudio(1, (stream) => {
+            stream.channelsCount = 1;
+          });
+        });
+
+        manifest.addVariant(1, (variant) => {
+          variant.addAudio(2, (stream) => {
+            stream.channelsCount = 2;
+          });
+        });
+
+        manifest.addVariant(2, (variant) => {
+          variant.addAudio(3, (stream) => {
+            stream.channelsCount = 6;
+          });
+        });
+      });
+
+      await player.load(fakeManifestUri, 0, fakeMimeType);
+      expect(player.getVariantTracks().length).toBe(3);
+
+      player.configure({restrictions:
+          {minChannelsCount: 2, maxChannelsCount: 4}});
 
       const tracks = player.getVariantTracks();
       expect(tracks.length).toBe(1);
@@ -3838,6 +4065,59 @@ describe('Player', () => {
       const liveTimeUtc = player.getPlayheadTimeAsDate();
       // (100 (program date time) + 20 (playhead time)) * 1000 (ms/sec)
       expect(liveTimeUtc).toEqual(new Date(120 * 1000));
+    });
+
+    it('uses program date time for VoD', () => {
+      timeline.setStatic(true);
+      timeline.setInitialProgramDateTime(100);
+      playhead.getTime.and.returnValue(20);
+
+      const liveTimeUtc = player.getPlayheadTimeAsDate();
+      // (100 (program date time) + 20 (playhead time)) * 1000 (ms/sec)
+      expect(liveTimeUtc).toEqual(new Date(120 * 1000));
+    });
+  });
+
+  describe('getPresentationStartTimeAsDate()', () => {
+    /** @type {?shaka.media.PresentationTimeline} */
+    let timeline;
+    beforeEach(async () => {
+      timeline = new shaka.media.PresentationTimeline(300, 0);
+      timeline.setStatic(false);
+
+      manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+        goog.asserts.assert(timeline, 'timeline must be non-null');
+        manifest.presentationTimeline = timeline;
+        manifest.addVariant(0, (variant) => {
+          variant.addVideo(1);
+        });
+      });
+
+      goog.asserts.assert(manifest, 'manifest must be non-null');
+      await player.load(fakeManifestUri, 0, fakeMimeType);
+    });
+
+    it('gets current wall clock time in UTC', () => {
+      const liveTimeUtc = player.getPresentationStartTimeAsDate();
+      // 300 (presentation start time) * 1000 (ms/sec)
+      expect(liveTimeUtc).toEqual(new Date(300 * 1000));
+    });
+
+    it('uses program date time', () => {
+      timeline.setInitialProgramDateTime(100);
+
+      const liveTimeUtc = player.getPresentationStartTimeAsDate();
+      // 100 (program date time) * 1000 (ms/sec)
+      expect(liveTimeUtc).toEqual(new Date(100 * 1000));
+    });
+
+    it('uses program date time for VoD', () => {
+      timeline.setStatic(true);
+      timeline.setInitialProgramDateTime(100);
+
+      const liveTimeUtc = player.getPlayheadTimeAsDate();
+      // 100 (program date time) * 1000 (ms/sec)
+      expect(liveTimeUtc).toEqual(new Date(100 * 1000));
     });
   });
 
@@ -4420,11 +4700,18 @@ describe('Player', () => {
 
       await player.load(fakeManifestUri, 12, fakeMimeType);
 
-      expect(playhead.setStartTime).toHaveBeenCalledWith(10);
+      expect(shaka.test.Util.spyFunc(playhead.getTime)()).toBe(10);
     });
 
     it('does not fail with no segments', async () => {
       player.configure('streaming.startAtSegmentBoundary', true);
+      for (const variant of manifest.variants) {
+        for (const stream of [variant.video, variant.audio]) {
+          if (stream) {
+            stream.segmentIndex.references = [];
+          }
+        }
+      }
 
       // Without useSegmentTemplate in the fake manifest, the call to
       // getIteratorForTime() in Player produces a null iterator.  Using the

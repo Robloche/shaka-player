@@ -31,6 +31,16 @@ describe('MSS Player', () => {
   // eslint-disable-next-line max-len
   const playreadyLicenseUrl = 'https://test.playready.microsoft.com/service/rightsmanager.asmx?cfg=(persist:false,sl:150)';
 
+  function checkPlayReadySupport() {
+    const playReadySupport =
+        window['shakaSupport'].drm['com.microsoft.playready'] ||
+        window['shakaSupport'].drm['com.chromecast.playready'];
+    if (!playReadySupport) {
+      return false;
+    }
+    return playReadySupport.encryptionSchemes.includes('cenc');
+  }
+
   beforeAll(async () => {
     video = shaka.test.UiUtils.createVideoElement();
     document.body.appendChild(video);
@@ -92,9 +102,8 @@ describe('MSS Player', () => {
     await player.unload();
   });
 
-  it('MSS VoD PlayReady', async () => {
-    const support = await shaka.media.DrmEngine.probeSupport();
-    if (!support['com.microsoft.playready']) {
+  drmIt('MSS VoD PlayReady', async () => {
+    if (!checkPlayReadySupport()) {
       pending('PlayReady is not supported by the platform.');
     }
 

@@ -5,6 +5,7 @@
  */
 
 describe('Ad manager', () => {
+  const originalGoogle = window['google'];
   /** @type {!shaka.test.FakeVideo} */
   let mockVideo;
   /** @type {!shaka.Player} */
@@ -25,10 +26,17 @@ describe('Ad manager', () => {
     expect(adManager instanceof shaka.ads.AdManager).toBe(true);
 
     const config = shaka.util.PlayerConfiguration.createDefault().ads;
+    // Since we are using a fake video we cannot use a custom playhead tracker
+    // in these tests.
+    config.customPlayheadTracker = false;
     adManager.configure(config);
 
     adContainer =
       /** @type {!HTMLElement} */ (document.createElement('div'));
+  });
+
+  afterEach(() => {
+    window['google'] = originalGoogle;
   });
 
   describe('client side', () => {
@@ -118,6 +126,10 @@ describe('Ad manager', () => {
             getVolume() {
               return 0;
             }
+
+            setVolume() {
+              // Nothing
+            }
           };
           return new MockAdManager();
         };
@@ -140,11 +152,11 @@ describe('Ad manager', () => {
       const eventManager = new shaka.util.EventManager();
       let loaded = false;
       let numAdStarted = 0;
-      const AdManager = shaka.ads.AdManager;
-      eventManager.listen(adManager, AdManager.IMA_AD_MANAGER_LOADED, () => {
-        loaded = true;
-      });
-      eventManager.listen(adManager, AdManager.AD_STARTED, () => {
+      eventManager.listen(adManager,
+          shaka.ads.Utils.IMA_AD_MANAGER_LOADED, () => {
+            loaded = true;
+          });
+      eventManager.listen(adManager, shaka.ads.Utils.AD_STARTED, () => {
         numAdStarted += 1;
       });
 

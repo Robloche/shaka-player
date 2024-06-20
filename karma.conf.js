@@ -166,26 +166,44 @@ module.exports = (config) => {
       'jasmine',
     ],
 
-    // An expressjs middleware, essentially a component that handles requests
-    // in Karma's webserver.  This one is custom, and will let us take
-    // screenshots of browsers connected through WebDriver.
-    middleware: ['webdriver-screenshot'],
+    middleware: [
+      // An expressjs middleware, essentially a component that handles requests
+      // in Karma's webserver.  This one is custom, and will let us take
+      // screenshots of browsers connected through WebDriver.
+      'webdriver-screenshot',
+
+      // A "middleware" that lets us hook and augment the reporters with
+      // additional information.
+      'augment-reporters',
+    ],
 
     plugins: [
       'karma-*',  // default plugins
       '@*/karma-*', // default scoped plugins
 
-      // An inline plugin which supplies the webdriver-screenshot middleware.
       {
+        // An inline plugin which supplies the webdriver-screenshot middleware.
         'middleware:webdriver-screenshot': [
           'factory', WebDriverScreenshotMiddlewareFactory,
+        ],
+
+        // An inline plugin which augments the Reporter to add additional
+        // information.
+        'middleware:augment-reporters': [
+          'factory', AugmentReportersFactory,
         ],
       },
     ],
 
     // list of files / patterns to load in the browser
     files: [
-      // Polyfills first, primarily for IE 11 and older TVs:
+      // The Cast boot file must come first, to start the SDK and respond as
+      // quickly as possible to the Cast platform.  Without this up front, we
+      // tend to see the Chromecast time out and shut down the receiver that
+      // hosts our tests.
+      'test/test/cast-boot.js',
+
+      // Polyfills before anything else, primarily for older TVs:
       //   Promise polyfill, required since we test uncompiled code on IE11
       'node_modules/es6-promise-polyfill/promise.js',
       //   Babel polyfill, required for async/await
@@ -196,11 +214,14 @@ module.exports = (config) => {
 
       // EME encryption scheme polyfill, compiled into Shaka Player, but outside
       // of the Closure deps system, so not in shaka-player.uncompiled.js.  This
-      // is specifically the compiled, minified, cross-browser build of it.
+      // is specifically the compiled, minified, cross-browser build of it.  It
+      // is necessary to use the compiled version to avoid problems on older
+      // TVs.
       // eslint-disable-next-line max-len
       'node_modules/eme-encryption-scheme-polyfill/dist/eme-encryption-scheme-polyfill.js',
 
       // load closure base, the deps tree, and the uncompiled library
+      'test/test/closure-boot.js',
       'node_modules/google-closure-library/closure/goog/base.js',
       'dist/deps.js',
       'shaka-player.uncompiled.js',
@@ -234,10 +255,14 @@ module.exports = (config) => {
       {pattern: 'test/**/*.js', included: false},
       {pattern: 'test/test/assets/*', included: false},
       {pattern: 'test/test/assets/dash-multi-codec/*', included: false},
+      {pattern: 'test/test/assets/dash-multi-codec-ec3/*', included: false},
       {pattern: 'test/test/assets/3675/*', included: false},
       {pattern: 'test/test/assets/6339/*', included: false},
       {pattern: 'test/test/assets/dash-aes-128/*', included: false},
+      {pattern: 'test/test/assets/dash-clearkey/*', included: false},
+      {pattern: 'test/test/assets/dash-vr/*', included: false},
       {pattern: 'test/test/assets/hls-aes-256/*', included: false},
+      {pattern: 'test/test/assets/hls-interstitial/*', included: false},
       {pattern: 'test/test/assets/hls-raw-aac/*', included: false},
       {pattern: 'test/test/assets/hls-raw-ac3/*', included: false},
       {pattern: 'test/test/assets/hls-raw-ec3/*', included: false},
@@ -255,6 +280,7 @@ module.exports = (config) => {
       {pattern: 'test/test/assets/hls-ts-muxed-ac3-h264/*', included: false},
       {pattern: 'test/test/assets/hls-ts-muxed-mp3-h264/*', included: false},
       {pattern: 'test/test/assets/hls-ts-muxed-ec3-h264/*', included: false},
+      {pattern: 'test/test/assets/hls-ts-muxed-opus-h264/*', included: false},
       {pattern: 'test/test/assets/hls-ts-raw-aac/*', included: false},
       {pattern: 'test/test/assets/hls-ts-rollover/*', included: false},
       {pattern: 'dist/shaka-player.ui.js', included: false},
@@ -286,6 +312,12 @@ module.exports = (config) => {
       // Hide the list of connected clients in Karma, to make screenshots more
       // stable.
       clientDisplayNone: true,
+      // Run directly in the top frame, instead of in an iframe.  This makes it
+      // easier to work around cross-origin frame issues or frame permissions
+      // issues when testing platforms like Chromecast, where there is already
+      // an iframe involved in the test framework.
+      useIframe: false,  // No iframe
+      runInParent: true,  // No new window
       // Only capture the client's logs if the settings want logging.
       captureConsole: !!settings.logging && settings.logging != 'none',
       // |args| must be an array; pass a key-value map as the sole client
@@ -346,8 +378,9 @@ module.exports = (config) => {
     autoWatch: settings.auto_watch,
 
     // Do a single run of the tests on captured browsers and then quit.
-    // Defaults to true.
-    singleRun: settings.single_run,
+    // This is required when running tests without Karma's iframe.
+    // (See useIframe above.)
+    singleRun: true,
 
     // Set the time limit (ms) that should be used to identify slow tests.
     reportSlowerThan: settings.report_slower_than,
@@ -883,3 +916,49 @@ function WebDriverScreenshotMiddlewareFactory(launcher) {
   }
 }
 WebDriverScreenshotMiddlewareFactory.$inject = ['launcher'];
+
+/**
+ * This is a factory for a "middleware" component that handles requests in
+ * Karma's webserver.  We don't handle any actual requests here, but we use this
+ * plugin to get access to the reporters through dependency injection and
+ * augment them to display the number of tests left to be processed.
+ *
+ * This is useful when running tests locally on many browsers, since you can
+ * see more clearly which browsers are still working and which are done.
+ *
+ * This could have been done through a fork of Karma itself, but this plugin
+ * was clearer in some ways than using a fork of a now-extinct project.
+ *
+ * @param {karma.Launcher} launcher
+ * @param {string} settingsJson
+ * @return {karma.Middleware}
+ */
+function AugmentReportersFactory(reporters, settingsJson) {
+  const settings = JSON.parse(settingsJson);
+
+  // Augment each reporter in the list.
+  for (const reporter of reporters) {
+    // Shim the renderBrowser function to add the number of test cases not yet
+    // processed (passed, failed, or skipped).
+    // The source we are patching: https://github.com/karma-runner/karma/blob/d8cf806e/lib/reporters/base.js#L37
+    const orig = reporter.renderBrowser;
+    reporter.renderBrowser = (browser) => {
+      const results = browser.lastResult;
+      const processed = results.success + results.failed + results.skipped;
+      const left = results.total - processed;
+      return orig(browser) + ` (${left} left)`;
+    };
+
+    // If we're not filtering explicitly, log any skipped tests.
+    if (!settings.filter) {
+      reporter.specSkipped = (browser, result) => {
+        reporter.writeCommonMsg(result.fullName + ' SKIPPED\n');
+      };
+    }
+  }
+
+  // Return a dummy middleware that does nothing and chains to the next
+  // middleware.
+  return (request, response, next) => next();
+}
+AugmentReportersFactory.$inject = ['reporter._reporters', 'config.settings'];

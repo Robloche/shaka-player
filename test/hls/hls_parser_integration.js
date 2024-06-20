@@ -7,9 +7,6 @@
 describe('HlsParser', () => {
   const Util = shaka.test.Util;
 
-  /** @type {!Object.<string, ?shaka.extern.DrmSupportType>} */
-  let support = {};
-
   /** @type {!jasmine.Spy} */
   let onErrorSpy;
 
@@ -26,12 +23,11 @@ describe('HlsParser', () => {
   let waiter;
 
   function checkClearKeySupport() {
-    // Some versions of Tizen doesn't support CBCS, so omit it for now.
-    // See: https://github.com/shaka-project/shaka-player/issues/1419
-    if (shaka.util.Platform.isTizen()) {
+    const clearKeySupport = window['shakaSupport'].drm['org.w3.clearkey'];
+    if (!clearKeySupport) {
       return false;
     }
-    return support['org.w3.clearkey'];
+    return clearKeySupport.encryptionSchemes.includes('cbcs');
   }
 
   beforeAll(async () => {
@@ -39,13 +35,14 @@ describe('HlsParser', () => {
     document.body.appendChild(video);
     compiledShaka =
         await shaka.test.Loader.loadShaka(getClientArg('uncompiled'));
-    support = await shaka.media.DrmEngine.probeSupport();
   });
 
   beforeEach(async () => {
     await shaka.test.TestScheme.createManifests(compiledShaka, '_compiled');
     player = new compiledShaka.Player();
     await player.attach(video);
+
+    player.configure('streaming.useNativeHlsOnSafari', false);
 
     // Disable stall detection, which can interfere with playback tests.
     player.configure('streaming.stallEnabled', false);
@@ -95,7 +92,7 @@ describe('HlsParser', () => {
     expect(keyRequests).toBe(5);
   });
 
-  it('supports SAMPLE-AES identity streaming', async () => {
+  drmIt('supports SAMPLE-AES identity streaming', async () => {
     if (!checkClearKeySupport()) {
       pending('ClearKey is not supported');
     }

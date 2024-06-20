@@ -170,7 +170,10 @@ describe('MediaSourceEngine', () => {
     mediaSourceEngine = new shaka.media.MediaSourceEngine(
         video,
         textDisplayer,
-        shaka.test.Util.spyFunc(onMetadata));
+        {
+          getKeySystem: () => null,
+          onMetadata: shaka.test.Util.spyFunc(onMetadata),
+        });
     const config = shaka.util.PlayerConfiguration.createDefault().mediaSource;
     mediaSourceEngine.configure(config);
 
@@ -259,10 +262,41 @@ describe('MediaSourceEngine', () => {
   }
 
   function getFakeStream(streamMetadata) {
+    const mimeType = streamMetadata.mimeType;
+    const codecs = streamMetadata.codecs;
+    const segmentIndex = {
+      isEmpty: () => false,
+    };
+    segmentIndex[Symbol.iterator] = () => {
+      let nextPosition = 0;
+
+      return {
+        next: () => {
+          if (nextPosition == 0) {
+            nextPosition += 1;
+            return {
+              value: {mimeType, codecs},
+              done: false,
+            };
+          } else {
+            return {
+              value: null,
+              done: true,
+            };
+          }
+        },
+        current: () => {
+          return {mimeType, codecs};
+        },
+      };
+    };
     return {
       mimeType: streamMetadata.mimeType,
       codecs: streamMetadata.codecs,
       drmInfos: [],
+      segmentIndex,
+      fullMimeTypes: new Set([shaka.util.MimeUtils.getFullType(
+          streamMetadata.mimeType, streamMetadata.codecs)]),
     };
   }
 
@@ -676,9 +710,6 @@ describe('MediaSourceEngine', () => {
   });
 
   it('extracts ID3 metadata from AAC when transmuxing', async () => {
-    if (!MediaSource.isTypeSupported('audio/aac')) {
-      pending('Raw AAC codec is not supported by the platform.');
-    }
     metadata = shaka.test.TestScheme.DATA['id3-metadata_aac'];
     generators = shaka.test.TestScheme.GENERATORS['id3-metadata_aac'];
 

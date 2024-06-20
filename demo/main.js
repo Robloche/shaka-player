@@ -60,6 +60,9 @@ shakaDemo.Main = class {
     this.trickPlayControlsEnabled_ = false;
 
     /** @private {boolean} */
+    this.customContextMenu_ = false;
+
+    /** @private {boolean} */
     this.nativeControlsEnabled_ = false;
 
     /** @private {shaka.extern.SupportType} */
@@ -360,6 +363,7 @@ shakaDemo.Main = class {
     const ui = video['ui'];
 
     const uiConfig = ui.getConfiguration();
+    uiConfig.customContextMenu = this.customContextMenu_;
     // Remove any trick play configurations from a previous config.
     uiConfig.addSeekBar = true;
     uiConfig.controlPanelElements =
@@ -795,6 +799,27 @@ shakaDemo.Main = class {
   }
 
   /**
+   * Enable or disable the UI's custom context menu.
+   *
+   * @param {boolean} enabled
+   */
+  setCustomContextMenuEnabled(enabled) {
+    this.customContextMenu_ = enabled;
+    // Configure the UI, to add or remove the controls.
+    this.configureUI_();
+    this.remakeHash();
+  }
+
+  /**
+   * Get if the UI's custom context menu is enabled.
+   *
+   * @return {boolean} enabled
+   */
+  getCustomContextMenuEnabled() {
+    return this.customContextMenu_;
+  }
+
+  /**
    * Enable or disable the native controls.
    * Goes into effect during the next load.
    *
@@ -930,6 +955,16 @@ shakaDemo.Main = class {
       this.configure('abr.enabled', false);
     }
 
+    if ('preferredVideoCodecs' in params) {
+      this.configure('preferredVideoCodecs',
+          params['preferredVideoCodecs'].split(','));
+    }
+
+    if ('preferredAudioCodecs' in params) {
+      this.configure('preferredAudioCodecs',
+          params['preferredAudioCodecs'].split(','));
+    }
+
     // Add compiled/uncompiled links.
     this.makeVersionLinks_();
 
@@ -939,6 +974,11 @@ shakaDemo.Main = class {
     // Enable trick play.
     if ('trickplay' in params) {
       this.trickPlayControlsEnabled_ = true;
+      this.configureUI_();
+    }
+
+    if ('customContextMenu' in params) {
+      this.customContextMenu_ = true;
       this.configureUI_();
     }
 
@@ -1294,6 +1334,15 @@ shakaDemo.Main = class {
 
       await this.drmConfiguration_(asset);
       this.controls_.getCastProxy().setAppData({'asset': asset});
+      const ui = this.video_['ui'];
+      if (asset.extraUiConfig) {
+        ui.configure(asset.extraUiConfig);
+      } else {
+        const uiConfig = {
+          displayInVrMode: false,
+        };
+        ui.configure(uiConfig);
+      }
 
       // Finally, the asset can be loaded.
       if (asset.preloadManager) {
@@ -1473,6 +1522,14 @@ shakaDemo.Main = class {
     }
     params.push('uilang=' + this.getUILocale());
 
+    for (const key of ['preferredVideoCodecs', 'preferredAudioCodecs']) {
+      const array = /** @type {!Array.<string>} */(
+        this.getCurrentConfigValue(key));
+      if (array.length) {
+        params.push(key + '=' + array.join(','));
+      }
+    }
+
     if (this.selectedAsset) {
       const isDefault = shakaAssets.testAssets.includes(this.selectedAsset);
       params.push('asset=' + this.selectedAsset.manifestUri);
@@ -1526,6 +1583,10 @@ shakaDemo.Main = class {
 
     if (this.trickPlayControlsEnabled_) {
       params.push('trickplay');
+    }
+
+    if (this.customContextMenu_) {
+      params.push('customContextMenu');
     }
 
     // MAX_LOG_LEVEL is the default starting log level. Only save the log level
@@ -1892,6 +1953,7 @@ shakaDemo.Main = class {
       serverCertificate: new Uint8Array(0),
       serverCertificateUri: '',
       individualizationServer: '',
+      headers: {},
     };
   }
 };

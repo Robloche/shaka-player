@@ -28,8 +28,11 @@ describe('CastUtils', () => {
       'setVideoContainer',
       'getActiveSessionsMetadata',
       'releaseAllMutexes', // Very specific to the inner workings of the player.
+      'detachAndSavePreload',
       'unloadAndSavePreload',
       'preload',
+      'destroyAllPreloads',
+      'getNonDefaultConfiguration',
 
       // Test helper methods (not @export'd)
       'createDrmEngine',
@@ -218,7 +221,11 @@ describe('CastUtils', () => {
 
         mediaSourceEngine = new shaka.media.MediaSourceEngine(
             video,
-            new shaka.test.FakeTextDisplayer());
+            new shaka.test.FakeTextDisplayer(),
+            {
+              getKeySystem: () => null,
+              onMetadata: () => {},
+            });
         const config =
             shaka.util.PlayerConfiguration.createDefault().mediaSource;
         mediaSourceEngine.configure(config);

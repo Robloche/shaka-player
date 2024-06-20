@@ -218,6 +218,13 @@ describe('Player', () => {
 
         maxSegmentDuration: jasmine.any(Number),
 
+        manifestSizeBytes: jasmine.any(Number),
+        bytesDownloaded: jasmine.any(Number),
+
+        nonFatalErrorCount: jasmine.any(Number),
+        manifestPeriodCount: jasmine.any(Number),
+        manifestGapCount: jasmine.any(Number),
+
         // We should have loaded the first Period by now, so we should have a
         // history.
         switchHistory: jasmine.arrayContaining([{
@@ -610,6 +617,9 @@ describe('Player', () => {
     });
 
     it('in sequence mode', async () => {
+      if (!shaka.util.Platform.supportsSequenceMode()) {
+        pending('Sequence mode is not supported by the platform.');
+      }
       await player.load('test:sintel_sequence_compiled');
       expect(player.getManifest().sequenceMode).toBe(true);
 
@@ -1189,7 +1199,8 @@ describe('Player', () => {
     drmIt('unloads properly after DRM error', async () => {
       const drmSupport = await shaka.media.DrmEngine.probeSupport();
       if (!drmSupport['com.widevine.alpha'] &&
-          !drmSupport['com.microsoft.playready']) {
+          !drmSupport['com.microsoft.playready'] &&
+          !drmSupport['com.chromecast.playready']) {
         pending('Skipping DRM error test, only runs on Widevine and PlayReady');
       }
 
@@ -1391,6 +1402,16 @@ describe('Player', () => {
     await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
   });
 
+  it('detachAndSavePreload', async () => {
+    await player.load('test:sintel_compiled');
+    await video.play();
+    const preloadManager = await player.detachAndSavePreload();
+    await player.attach(video);
+    await player.load(preloadManager);
+    await video.play();
+    await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
+  });
+
   it('unloadAndSavePreload', async () => {
     await player.load('test:sintel_compiled');
     await video.play();
@@ -1398,6 +1419,32 @@ describe('Player', () => {
     await player.load(preloadManager);
     await video.play();
     await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
+  });
+
+  describe('supports nextUrl', () => {
+    const urlWithNextUrl = 'test:sintel_next_url_compiled';
+
+    it('with preload', async () => {
+      player.configure('streaming.preloadNextUrlWindow', 30);
+      await player.load(urlWithNextUrl);
+      await video.play();
+      await waiter.timeoutAfter(30).waitForEnd(video);
+      expect(player.getAssetUri()).toBe(urlWithNextUrl);
+      // Delay needed to load the next URL.
+      await shaka.test.Util.delay(1);
+      expect(player.getAssetUri()).not.toBe(urlWithNextUrl);
+    });
+
+    it('without preload', async () => {
+      player.configure('streaming.preloadNextUrlWindow', 0);
+      await player.load(urlWithNextUrl);
+      await video.play();
+      await waiter.timeoutAfter(30).waitForEnd(video);
+      expect(player.getAssetUri()).toBe(urlWithNextUrl);
+      // Delay needed to load the next URL.
+      await shaka.test.Util.delay(1);
+      expect(player.getAssetUri()).not.toBe(urlWithNextUrl);
+    });
   });
 
   describe('buffer gap', () => {

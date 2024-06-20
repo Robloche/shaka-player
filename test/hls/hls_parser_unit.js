@@ -29,6 +29,8 @@ describe('HlsParser', () => {
   let onEventSpy;
   /** @type {!jasmine.Spy} */
   let newDrmInfoSpy;
+  /** @type {!jasmine.Spy} */
+  let onMetadataSpy;
   /** @type {shaka.extern.ManifestParser.PlayerInterface} */
   let playerInterface;
   /** @type {shaka.extern.ManifestConfiguration} */
@@ -76,6 +78,7 @@ describe('HlsParser', () => {
     sequenceMode = config.hls.sequenceMode;
     onEventSpy = jasmine.createSpy('onEvent');
     newDrmInfoSpy = jasmine.createSpy('newDrmInfo');
+    onMetadataSpy = jasmine.createSpy('onMetadata');
     playerInterface = {
       modifyManifestRequest: (request, manifestInfo) => {},
       modifySegmentRequest: (request, segmentInfo) => {},
@@ -92,6 +95,8 @@ describe('HlsParser', () => {
       newDrmInfo: shaka.test.Util.spyFunc(newDrmInfoSpy),
       onManifestUpdated: () => {},
       getBandwidthEstimate: () => 1e6,
+      onMetadata: shaka.test.Util.spyFunc(onMetadataSpy),
+      disableStream: (stream) => {},
     };
 
     parser = new shaka.hls.HlsParser();
@@ -912,7 +917,7 @@ describe('HlsParser', () => {
       manifest.anyTimeline();
       manifest.addPartialVariant((variant) => {
         variant.addPartialStream(ContentType.VIDEO, (stream) => {
-          stream.mime('video/mp4', /** @type {?} */ (jasmine.any(String)));
+          stream.mime('video/mp4', 'avc1.42E01E,mp4a.40.2');
         });
       });
       manifest.sequenceMode = sequenceMode;
@@ -945,10 +950,10 @@ describe('HlsParser', () => {
       manifest.anyTimeline();
       manifest.addPartialVariant((variant) => {
         variant.addPartialStream(ContentType.VIDEO, (stream) => {
-          stream.mime('video/mp4', /** @type {?} */ (jasmine.any(String)));
+          stream.mime('video/mp4', 'avc1.42E01E');
         });
         variant.addPartialStream(ContentType.AUDIO, (stream) => {
-          stream.mime('audio/mp4', /** @type {?} */ (jasmine.any(String)));
+          stream.mime('audio/mp4', 'mp4a.40.2');
         });
       });
       manifest.sequenceMode = sequenceMode;
@@ -980,7 +985,7 @@ describe('HlsParser', () => {
       manifest.anyTimeline();
       manifest.addPartialVariant((variant) => {
         variant.addPartialStream(ContentType.VIDEO, (stream) => {
-          stream.mime('video/mp4', /** @type {?} */ (jasmine.any(String)));
+          stream.mime('video/mp4', 'avc1.42E01E,mp4a.40.2');
           stream.language = 'en';
           stream.originalLanguage = 'eng';
           stream.label = 'audio';
@@ -1015,7 +1020,7 @@ describe('HlsParser', () => {
       manifest.anyTimeline();
       manifest.addPartialVariant((variant) => {
         variant.addPartialStream(ContentType.AUDIO, (stream) => {
-          stream.mime('audio/mp4', /** @type {?} */ (jasmine.any(String)));
+          stream.mime('audio/mp4', 'mp4a');
         });
       });
       manifest.sequenceMode = sequenceMode;
@@ -1028,10 +1033,10 @@ describe('HlsParser', () => {
   it('parses multiple variants', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
       'video\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=120,AUDIO="aud2"\n',
       'video2\n',
       '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="eng",',
@@ -1083,7 +1088,7 @@ describe('HlsParser', () => {
   it('parses multiple streams with the same group id', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
       'video\n',
       '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="en",',
@@ -1129,7 +1134,8 @@ describe('HlsParser', () => {
   it('parses discontinuity tags', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=2000000,CODECS="avc1"\n',
+      '#EXT-X-STREAM-INF:BANDWIDTH=2000000,CODECS="avc1",',
+      'CLOSED-CAPTIONS=NONE\n',
       'video\n',
     ].join('');
 
@@ -1184,7 +1190,7 @@ describe('HlsParser', () => {
   it('parses characteristics from audio tags', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
       'video\n',
 
@@ -1238,7 +1244,7 @@ describe('HlsParser', () => {
   it('adds subtitle role when characteristics are empty', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1",SUBTITLES="sub1"\n',
       'video\n',
 
@@ -1307,7 +1313,7 @@ describe('HlsParser', () => {
   it('parses characteristics from text tags', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60,SUBTITLES="sub1"\n',
       'video\n',
 
@@ -1361,7 +1367,7 @@ describe('HlsParser', () => {
   it('makes roles available without loading tracks', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1",SUBTITLES="sub1"\n',
       'video\n',
 
@@ -1811,7 +1817,7 @@ describe('HlsParser', () => {
       'URI="text"\n',
       '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub2",LANGUAGE="es",',
       'URI="text2"\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
       'video\n',
     ].join('');
@@ -2170,6 +2176,7 @@ describe('HlsParser', () => {
     const actual = await parser.start('test:/master', playerInterface);
     await loadAllStreamsFor(actual);
 
+    expect(actual.gapCount).toBe(2);
     expect(actual.variants.length).toBe(1);
 
     const variant = actual.variants[0];
@@ -2607,7 +2614,7 @@ describe('HlsParser', () => {
       '#EXTM3U\n',
       '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub1",LANGUAGE="eng",',
       'URI="text"\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,stpp.ttml.im1t",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,stpp.ttml.im1t",',
       'RESOLUTION=960x540,FRAME-RATE=60,SUBTITLES="sub1"\n',
       'video\n',
     ].join('');
@@ -2653,7 +2660,7 @@ describe('HlsParser', () => {
       '#EXTM3U\n',
       '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub1",LANGUAGE="eng",',
       'CODECS="wvtt",URI="text"\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60,SUBTITLES="sub1"\n',
       'video\n',
     ].join('');
@@ -2698,7 +2705,7 @@ describe('HlsParser', () => {
       '#EXTM3U\n',
       '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub1",LANGUAGE="eng",',
       'URI="text"\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,vtt",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,vtt",',
       'RESOLUTION=960x540,FRAME-RATE=60,SUBTITLES="sub1"\n',
       'video\n',
     ].join('');
@@ -2751,7 +2758,7 @@ describe('HlsParser', () => {
       '#EXTM3U\n',
       '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub1",LANGUAGE="eng",',
       'URI="text"\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,wvtt",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,wvtt",',
       'RESOLUTION=960x540,FRAME-RATE=60,SUBTITLES="sub1"\n',
       'video\n',
     ].join('');
@@ -2772,6 +2779,7 @@ describe('HlsParser', () => {
       });
       manifest.addPartialTextStream((stream) => {
         stream.kind = TextStreamKind.SUBTITLE;
+        stream.mime('application/mp4', 'wvtt');
       });
       manifest.sequenceMode = sequenceMode;
       manifest.type = shaka.media.ManifestParser.HLS;
@@ -2915,11 +2923,13 @@ describe('HlsParser', () => {
      * @param {!Array.<number>} startTimes
      * @param {number} syncTimeOffset
      * @param {(function(!shaka.media.SegmentReference))=} modifyFn
+     * @param {boolean=} isLowLatency
      */
-    async function test(media, startTimes, syncTimeOffset, modifyFn) {
+    async function test(media, startTimes, syncTimeOffset, modifyFn,
+        isLowLatency = false) {
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,vtt",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,vtt",',
         'RESOLUTION=960x540,FRAME-RATE=60\n',
         'video\n',
       ].join('');
@@ -2945,6 +2955,7 @@ describe('HlsParser', () => {
         });
         manifest.sequenceMode = sequenceMode;
         manifest.type = shaka.media.ManifestParser.HLS;
+        manifest.isLowLatency = !!isLowLatency;
       });
 
       fakeNetEngine
@@ -3065,7 +3076,7 @@ describe('HlsParser', () => {
           reference.partialReferences = [partialRef, partialRef2];
           reference.allPartialSegments = true;
         }
-      });
+      }, /* isLowLatency= */ true);
     });
   });
 
@@ -3073,7 +3084,7 @@ describe('HlsParser', () => {
     const master = [
       '#EXTM3U\n',
       '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub1",LANGUAGE="eng"\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,vtt",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,vtt",',
       'RESOLUTION=960x540,FRAME-RATE=60,SUBTITLES="sub1"\n',
       'video\n',
     ].join('');
@@ -3112,7 +3123,7 @@ describe('HlsParser', () => {
   it('drops failed image streams when configured to', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video\n',
       '#EXT-X-IMAGE-STREAM-INF:RESOLUTION=240×135,CODECS="jpeg"\n',
@@ -3152,7 +3163,7 @@ describe('HlsParser', () => {
   it('parses video described by a media tag', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=60,VIDEO="vid"\n',
       'audio\n',
       '#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID="vid",URI="video"',
@@ -3326,13 +3337,13 @@ describe('HlsParser', () => {
   it('parses variants encrypted with AES-128', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
       'video\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=90,AUDIO="aud2"\n',
       'video2\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=960x540,FRAME-RATE=120,AUDIO="aud3"\n',
       'video3\n',
       '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="eng",',
@@ -3407,6 +3418,7 @@ describe('HlsParser', () => {
         variant.bandwidth = 300;
         variant.addPartialStream(ContentType.VIDEO, (stream) => {
           stream.size(960, 540);
+          stream.mime('video/mp2t', 'avc1.4d401f');
         });
         variant.addPartialStream(ContentType.AUDIO, (stream) => {
           stream.language = 'de';
@@ -3512,7 +3524,7 @@ describe('HlsParser', () => {
   it('constructs DrmInfo for Widevine', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video\n',
     ].join('');
@@ -3545,6 +3557,7 @@ describe('HlsParser', () => {
           stream.addDrmInfo('com.widevine.alpha', (drmInfo) => {
             drmInfo.addCencInitData(initDataBase64);
             drmInfo.keyIds.add(keyId);
+            drmInfo.encryptionScheme = 'cenc';
           });
         });
       });
@@ -3559,7 +3572,7 @@ describe('HlsParser', () => {
   it('constructs DrmInfo for PlayReady', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video\n',
     ].join('');
@@ -3587,6 +3600,7 @@ describe('HlsParser', () => {
           stream.encrypted = true;
           stream.addDrmInfo('com.microsoft.playready', (drmInfo) => {
             drmInfo.addCencInitData(initDataBase64);
+            drmInfo.encryptionScheme = 'cenc';
           });
         });
       });
@@ -3601,8 +3615,8 @@ describe('HlsParser', () => {
   it('constructs DrmInfo for FairPlay', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
-      'RESOLUTION=960x540,FRAME-RATE=60\n',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
+      'RESOLUTION=960x540,FRAME-RATE=60,CLOSED-CAPTIONS=NONE\n',
       'video\n',
     ].join('');
 
@@ -3626,6 +3640,9 @@ describe('HlsParser', () => {
           stream.encrypted = true;
           stream.addDrmInfo('com.apple.fps', (drmInfo) => {
             drmInfo.addInitData('sinf', new Uint8Array(0));
+            drmInfo.encryptionScheme = 'cenc';
+            drmInfo.addKeySystemUris(new Set(
+                ['skd://f93d4e700d7ddde90529a27735d9e7cb']));
           });
         });
       });
@@ -3640,7 +3657,7 @@ describe('HlsParser', () => {
   it('constructs DrmInfo for ClearKey with explicit KEYFORMAT', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video\n',
     ].join('');
@@ -3671,6 +3688,7 @@ describe('HlsParser', () => {
               'IiwiayI6IlVHbzJhRVpuZERWcFJscDBaa0pNVGpadmNUaEZaejA5In1dfQ==';
             drmInfo.keyIds.add(keyId);
             drmInfo.addKeyIdsData(initDataBase64);
+            drmInfo.encryptionScheme = 'cenc';
           });
         });
       });
@@ -3687,7 +3705,7 @@ describe('HlsParser', () => {
   it('constructs DrmInfo for ClearKey without explicit KEYFORMAT', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video\n',
     ].join('');
@@ -3717,6 +3735,7 @@ describe('HlsParser', () => {
               'IiwiayI6IlVHbzJhRVpuZERWcFJscDBaa0pNVGpadmNUaEZaejA5In1dfQ==';
             drmInfo.keyIds.add(keyId);
             drmInfo.addKeyIdsData(initDataBase64);
+            drmInfo.encryptionScheme = 'cenc';
           });
         });
       });
@@ -3725,6 +3744,52 @@ describe('HlsParser', () => {
     });
 
     fakeNetEngine.setResponseText('test:/key.bin', 'Pj6hFgt5iFZtfBLN6oq8Eg==');
+
+    await testHlsParser(master, media, manifest);
+    expect(newDrmInfoSpy).toHaveBeenCalled();
+  });
+
+  it('constructs DrmInfo for ClearKey with raw key', async () => {
+    const master = [
+      '#EXTM3U\n',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
+      'RESOLUTION=960x540,FRAME-RATE=60\n',
+      'video\n',
+    ].join('');
+
+    const media = [
+      '#EXTM3U\n',
+      '#EXT-X-TARGETDURATION:6\n',
+      '#EXT-X-PLAYLIST-TYPE:VOD\n',
+      '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,',
+      'KEYFORMAT="identity",',
+      'URI="data:text/plain;base64,Pj6hFgt5iFZtfBLN6oq8Eg==",\n',
+      '#EXT-X-MAP:URI="init.mp4"\n',
+      '#EXTINF:5,\n',
+      'main.mp4',
+    ].join('');
+
+    const initDataBase64 = 'eyJraWRzIjpbIkFBQUFBQUFBQUFBQUFBQUFBQUFBQUEiXX0=';
+    const keyId = '00000000000000000000000000000000';
+
+    const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+      manifest.anyTimeline();
+      manifest.addPartialVariant((variant) => {
+        variant.addPartialStream(ContentType.VIDEO, (stream) => {
+          stream.encrypted = true;
+          stream.addDrmInfo('org.w3.clearkey', (drmInfo) => {
+            drmInfo.licenseServerUri = 'data:application/json;base64,eyJrZXl' +
+              'zIjpbeyJrdHkiOiJvY3QiLCJraWQiOiJBQUFBQUFBQUFBQUFBQUFBQUFBQUFB' +
+              'IiwiayI6IlBqNmhGZ3Q1aUZadGZCTE42b3E4RWcifV19';
+            drmInfo.keyIds.add(keyId);
+            drmInfo.addKeyIdsData(initDataBase64);
+            drmInfo.encryptionScheme = 'cenc';
+          });
+        });
+      });
+      manifest.sequenceMode = sequenceMode;
+      manifest.type = shaka.media.ManifestParser.HLS;
+    });
 
     await testHlsParser(master, media, manifest);
     expect(newDrmInfoSpy).toHaveBeenCalled();
@@ -3739,10 +3804,10 @@ describe('HlsParser', () => {
 
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=30\n',
         'video\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=60\n',
         'video2\n',
         '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES-CTR,',
@@ -3759,6 +3824,7 @@ describe('HlsParser', () => {
             stream.addDrmInfo('com.widevine.alpha', (drmInfo) => {
               drmInfo.addCencInitData(initDataBase64);
               drmInfo.keyIds.add(keyId);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3767,6 +3833,7 @@ describe('HlsParser', () => {
             stream.addDrmInfo('com.widevine.alpha', (drmInfo) => {
               drmInfo.addCencInitData(initDataBase64);
               drmInfo.keyIds.add(keyId);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3786,10 +3853,10 @@ describe('HlsParser', () => {
 
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=30\n',
         'video\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=60\n',
         'video2\n',
         '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES-CTR,',
@@ -3803,6 +3870,7 @@ describe('HlsParser', () => {
           variant.addPartialStream(ContentType.VIDEO, (stream) => {
             stream.addDrmInfo('com.microsoft.playready', (drmInfo) => {
               drmInfo.addCencInitData(initDataBase64);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3810,6 +3878,7 @@ describe('HlsParser', () => {
           variant.addPartialStream(ContentType.VIDEO, (stream) => {
             stream.addDrmInfo('com.microsoft.playready', (drmInfo) => {
               drmInfo.addCencInitData(initDataBase64);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3826,11 +3895,11 @@ describe('HlsParser', () => {
     it('for FairPlay', async () => {
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
-        'RESOLUTION=960x540,FRAME-RATE=30\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
+        'RESOLUTION=960x540,FRAME-RATE=30,CLOSED-CAPTIONS=NONE\n',
         'video\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1",',
-        'RESOLUTION=960x540,FRAME-RATE=60\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f",',
+        'RESOLUTION=960x540,FRAME-RATE=60,CLOSED-CAPTIONS=NONE\n',
         'video2\n',
         '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES-CTR,',
         'KEYFORMAT="com.apple.streamingkeydelivery",',
@@ -3843,6 +3912,9 @@ describe('HlsParser', () => {
           variant.addPartialStream(ContentType.VIDEO, (stream) => {
             stream.addDrmInfo('com.apple.fps', (drmInfo) => {
               drmInfo.addInitData('sinf', new Uint8Array(0));
+              drmInfo.encryptionScheme = 'cenc';
+              drmInfo.addKeySystemUris(new Set(
+                  ['skd://f93d4e700d7ddde90529a27735d9e7cb']));
             });
           });
         });
@@ -3850,6 +3922,9 @@ describe('HlsParser', () => {
           variant.addPartialStream(ContentType.VIDEO, (stream) => {
             stream.addDrmInfo('com.apple.fps', (drmInfo) => {
               drmInfo.addInitData('sinf', new Uint8Array(0));
+              drmInfo.encryptionScheme = 'cenc';
+              drmInfo.addKeySystemUris(new Set(
+                  ['skd://f93d4e700d7ddde90529a27735d9e7cb']));
             });
           });
         });
@@ -3866,10 +3941,10 @@ describe('HlsParser', () => {
     it('for ClearKey with explicit KEYFORMAT', async () => {
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=30\n',
         'video\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=60\n',
         'video2\n',
         '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES-CTR,',
@@ -3892,6 +3967,7 @@ describe('HlsParser', () => {
               drmInfo.licenseServerUri = licenseServerUri;
               drmInfo.keyIds.add(keyId);
               drmInfo.addKeyIdsData(initDataBase64);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3901,6 +3977,7 @@ describe('HlsParser', () => {
               drmInfo.licenseServerUri = licenseServerUri;
               drmInfo.keyIds.add(keyId);
               drmInfo.addKeyIdsData(initDataBase64);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3919,10 +3996,10 @@ describe('HlsParser', () => {
     it('for ClearKey without explicit KEYFORMAT', async () => {
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=30\n',
         'video\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1",',
+        '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f",',
         'RESOLUTION=960x540,FRAME-RATE=60\n',
         'video2\n',
         '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES-CTR,',
@@ -3944,6 +4021,7 @@ describe('HlsParser', () => {
               drmInfo.licenseServerUri = licenseServerUri;
               drmInfo.keyIds.add(keyId);
               drmInfo.addKeyIdsData(initDataBase64);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3953,6 +4031,7 @@ describe('HlsParser', () => {
               drmInfo.licenseServerUri = licenseServerUri;
               drmInfo.keyIds.add(keyId);
               drmInfo.addKeyIdsData(initDataBase64);
+              drmInfo.encryptionScheme = 'cenc';
             });
           });
         });
@@ -3967,6 +4046,38 @@ describe('HlsParser', () => {
       const actual = await parser.start('test:/master', playerInterface);
       expect(actual).toEqual(manifest);
     });
+  });
+
+  it('Preload AES key with EXT-X-SESSION-KEY', async () => {
+    const master = [
+      '#EXTM3U\n',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
+      'RESOLUTION=960x540,FRAME-RATE=30\n',
+      'video\n',
+      '#EXT-X-STREAM-INF:BANDWIDTH=300,CODECS="avc1.4d401f",',
+      'RESOLUTION=960x540,FRAME-RATE=60\n',
+      'video2\n',
+      '#EXT-X-SESSION-KEY:METHOD=AES-128,',
+      'URI="800k.key"\n',
+    ].join('');
+
+    const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+      manifest.anyTimeline();
+      manifest.addPartialVariant((variant) => {
+        variant.addPartialStream(ContentType.VIDEO);
+      });
+      manifest.addPartialVariant((variant) => {
+        variant.addPartialStream(ContentType.VIDEO);
+      });
+      manifest.sequenceMode = sequenceMode;
+      manifest.type = shaka.media.ManifestParser.HLS;
+    });
+
+    fakeNetEngine.setResponseText('test:/master', master)
+        .setResponseValue('test:/800k.key', aesKey);
+
+    const actual = await parser.start('test:/master', playerInterface);
+    expect(actual).toEqual(manifest);
   });
 
   it('falls back to mp4 if HEAD request fails', async () => {
@@ -4151,8 +4262,8 @@ describe('HlsParser', () => {
     it('if FairPlay encryption with MSE and mp2t content', async () => {
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
-        'RESOLUTION=960x540,FRAME-RATE=60\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
+        'RESOLUTION=960x540,FRAME-RATE=60,CLOSED-CAPTIONS=NONE\n',
         'video\n',
       ].join('');
 
@@ -4179,8 +4290,8 @@ describe('HlsParser', () => {
     it('if SAMPLE-AES encryption with MSE and mp2t content', async () => {
       const master = [
         '#EXTM3U\n',
-        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
-        'RESOLUTION=960x540,FRAME-RATE=60\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
+        'RESOLUTION=960x540,FRAME-RATE=60,CLOSED-CAPTIONS=NONE\n',
         'video\n',
       ].join('');
 
@@ -4245,7 +4356,7 @@ describe('HlsParser', () => {
   it('correctly detects VOD streams as non-live', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video',
     ].join('');
@@ -4272,7 +4383,7 @@ describe('HlsParser', () => {
   it('correctly detects streams with ENDLIST as non-live', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video',
     ].join('');
@@ -4299,7 +4410,7 @@ describe('HlsParser', () => {
   it('guesses MIME types for known extensions', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video',
     ].join('');
@@ -4327,7 +4438,7 @@ describe('HlsParser', () => {
   it('guesses MIME types for known extensions with parameters', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=960x540,FRAME-RATE=60\n',
       'video',
     ].join('');
@@ -4443,10 +4554,10 @@ describe('HlsParser', () => {
       'URI="audio"\n',
       '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="fr",',
       'URI="audio2"\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=1280x720,FRAME-RATE=30,AUDIO="aud1"\n',
       'video\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=400,CODECS="avc1,mp4a",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=400,CODECS="avc1.4d401f,mp4a.40.2",',
       'RESOLUTION=1920x1080,FRAME-RATE=30,AUDIO="aud1"\n',
       'video2\n',
     ].join('');
@@ -4513,10 +4624,10 @@ describe('HlsParser', () => {
   it('handles unaligned streams', async () => {
     const master = [
       '#EXTM3U\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d401f",',
       'RESOLUTION=1280x720,FRAME-RATE=30\n',
       'video\n',
-      '#EXT-X-STREAM-INF:BANDWIDTH=400,CODECS="avc1",',
+      '#EXT-X-STREAM-INF:BANDWIDTH=400,CODECS="avc1.4d401f",',
       'RESOLUTION=1920x1080,FRAME-RATE=30\n',
       'video2\n',
     ].join('');
@@ -5109,7 +5220,7 @@ describe('HlsParser', () => {
       '#EXTM3U\n',
       '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="eng",URI="audio"\n',
       '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
-      'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
+      'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1",CLOSED-CAPTIONS=NONE\n',
       'video\n',
     ].join('');
 
@@ -5194,10 +5305,10 @@ describe('HlsParser', () => {
       '#EXTM3U\n',
       '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="eng",URI="audio"\n',
       '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
-      'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
+      'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1",CLOSED-CAPTIONS=NONE\n',
       'video\n',
       '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
-      'RESOLUTION=960x540,FRAME-RATE=120,AUDIO="aud1"\n',
+      'RESOLUTION=960x540,FRAME-RATE=120,AUDIO="aud1",CLOSED-CAPTIONS=NONE\n',
       'video2\n',
     ].join('');
 
@@ -5343,10 +5454,10 @@ describe('HlsParser', () => {
       '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="b",LANGUAGE="eng",',
       'URI="audio/b/media.m3u8"\n',
       '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc,mp4a",',
-      'AUDIO="a",PATHWAY-ID="a"\n',
+      'AUDIO="a",PATHWAY-ID="a",CLOSED-CAPTIONS=NONE\n',
       'a/media.m3u8\n',
       '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc,mp4a",',
-      'AUDIO="b",PATHWAY-ID="b"\n',
+      'AUDIO="b",PATHWAY-ID="b",CLOSED-CAPTIONS=NONE\n',
       'b/media.m3u8',
     ].join('');
 
@@ -5401,5 +5512,258 @@ describe('HlsParser', () => {
 
     expect(videoUri0).toBe('http://master/b/main.mp4');
     expect(videoUri1).toBe('http://master/a/main.mp4');
+  });
+
+  describe('EXT-X-DATERANGE', () => {
+    it('supports multiples tags', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXT-X-PROGRAM-DATE-TIME:2000-01-01T00:00:00.00Z\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="2000-01-01T00:00:00.00Z",',
+        'DURATION=1,X-SHAKA="FOREVER"\n',
+        '#EXT-X-DATERANGE:ID="1",START-DATE="2000-01-01T00:00:05.00Z",',
+        'END-DATE="2000-01-01T00:00:06.00Z",X-SHAKA="FOREVER"\n',
+        '#EXT-X-DATERANGE:ID="2",START-DATE="2000-01-01T00:00:10.00Z",',
+        'PLANNED-DURATION=1,X-SHAKA="FOREVER"\n',
+        '#EXT-X-DATERANGE:ID="3",START-DATE="2000-01-01T00:00:15.00Z",',
+        'X-SHAKA="FOREVER"\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      const metadataType = 'com.apple.quicktime.HLS';
+      const value = {
+        key: 'X-SHAKA',
+        data: 'FOREVER',
+      };
+      const plannedDuration = {
+        key: 'PLANNED-DURATION',
+        data: '1',
+      };
+      expect(onMetadataSpy).toHaveBeenCalledTimes(4);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 0, 1,
+          [jasmine.objectContaining(value)]);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 5, 6,
+          [jasmine.objectContaining(value)]);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 10, 11,
+          [
+            jasmine.objectContaining(plannedDuration),
+            jasmine.objectContaining(value),
+          ]);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 15, null,
+          [jasmine.objectContaining(value)]);
+    });
+
+    it('supports END-ON-NEXT', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXT-X-PROGRAM-DATE-TIME:2000-01-01T00:00:00.00Z\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="2000-01-01T00:00:00.00Z",',
+        'END-ON-NEXT=YES,X-SHAKA="FOREVER"\n',
+        '#EXT-X-DATERANGE:ID="1",START-DATE="2000-01-01T00:00:05.00Z",',
+        'END-ON-NEXT=YES,X-SHAKA="FOREVER"\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      const metadataType = 'com.apple.quicktime.HLS';
+      const value = {
+        key: 'X-SHAKA',
+        data: 'FOREVER',
+      };
+      expect(onMetadataSpy).toHaveBeenCalledTimes(1);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 0, 5,
+          [jasmine.objectContaining(value)]);
+    });
+
+    it('skip duplicate IDs', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXT-X-PROGRAM-DATE-TIME:2000-01-01T00:00:00.00Z\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="2000-01-01T00:00:00.00Z",',
+        'DURATION=1,X-SHAKA="FOREVER"\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="2000-01-01T00:00:00.00Z",',
+        'DURATION=1,X-SHAKA="FOREVER"\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="2000-01-01T00:00:00.00Z",',
+        'DURATION=1,X-SHAKA="FOREVER"\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      const metadataType = 'com.apple.quicktime.HLS';
+      const value = {
+        key: 'X-SHAKA',
+        data: 'FOREVER',
+      };
+      expect(onMetadataSpy).toHaveBeenCalledTimes(1);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 0, 1,
+          [jasmine.objectContaining(value)]);
+    });
+
+    it('with no EXT-X-PROGRAM-DATE-TIME', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="2000-01-01T00:00:00.00Z",',
+        'DURATION=1,X-SHAKA="FOREVER"\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      expect(onMetadataSpy).not.toHaveBeenCalled();
+    });
+
+    it('ignores without useful value', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXT-X-PROGRAM-DATE-TIME:2000-01-01T00:00:00.00Z\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="2000-01-01T00:00:00.00Z",',
+        'DURATION=1\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      expect(onMetadataSpy).not.toHaveBeenCalled();
+    });
+
+    it('ignores if date ranges are in the past', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXT-X-PROGRAM-DATE-TIME:2000-01-01T00:00:00.00Z\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="0",START-DATE="1999-01-01T00:00:00.00Z",',
+        'DURATION=1,X-SHAKA="FOREVER"\n',
+        '#EXT-X-DATERANGE:ID="1",START-DATE="2000-01-01T00:00:05.00Z",',
+        'END-DATE="1999-01-01T00:00:06.00Z",X-SHAKA="FOREVER"\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      expect(onMetadataSpy).not.toHaveBeenCalled();
+    });
+
+    it('supports interstitial', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXT-X-PROGRAM-DATE-TIME:2000-01-01T00:00:00.00Z\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="1",CLASS="com.apple.hls.interstitial",',
+        'START-DATE="2000-01-01T00:00:05.00Z",DURATION=30.0,',
+        'X-ASSET-URI="fake",CUE="PRE,ONCE",X-RESTRICT="SKIP,JUMP",',
+        'X-SNAP="IN"\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      const metadataType = 'com.apple.hls.interstitial';
+      const values = [
+        jasmine.objectContaining({
+          key: 'X-ASSET-URI',
+          data: 'test:/fake',
+        }),
+        jasmine.objectContaining({
+          key: 'CUE',
+          data: 'PRE,ONCE',
+        }),
+        jasmine.objectContaining({
+          key: 'X-RESTRICT',
+          data: 'SKIP,JUMP',
+        }),
+        jasmine.objectContaining({
+          key: 'X-SNAP',
+          data: 'IN',
+        }),
+      ];
+      expect(onMetadataSpy).toHaveBeenCalledTimes(1);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 5, 35, values);
+    });
+
+    it('supports interstitial', async () => {
+      const mediaPlaylist = [
+        '#EXTM3U\n',
+        '#EXT-X-TARGETDURATION:5\n',
+        '#EXT-X-PROGRAM-DATE-TIME:2000-01-01T00:00:00.00Z\n',
+        '#EXTINF:5,\n',
+        'video1.ts\n',
+        '#EXT-X-DATERANGE:ID="1",CLASS="com.apple.hls.interstitial",',
+        'START-DATE="2000-01-01T00:00:05.00Z",DURATION=30.0,',
+        'X-ASSET-LIST="fake",CUE="PRE,ONCE",X-RESTRICT="SKIP,JUMP",',
+        'X-SNAP="IN"\n',
+      ].join('');
+
+      fakeNetEngine
+          .setResponseText('test:/master', mediaPlaylist)
+          .setResponseValue('test:/video1.ts', tsSegmentData);
+
+      await parser.start('test:/master', playerInterface);
+
+      const metadataType = 'com.apple.hls.interstitial';
+      const values = [
+        jasmine.objectContaining({
+          key: 'X-ASSET-LIST',
+          data: 'test:/fake',
+        }),
+        jasmine.objectContaining({
+          key: 'CUE',
+          data: 'PRE,ONCE',
+        }),
+        jasmine.objectContaining({
+          key: 'X-RESTRICT',
+          data: 'SKIP,JUMP',
+        }),
+        jasmine.objectContaining({
+          key: 'X-SNAP',
+          data: 'IN',
+        }),
+      ];
+      expect(onMetadataSpy).toHaveBeenCalledTimes(1);
+      expect(onMetadataSpy).toHaveBeenCalledWith(metadataType, 5, 35, values);
+    });
   });
 });

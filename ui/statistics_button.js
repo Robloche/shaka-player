@@ -117,6 +117,25 @@ shaka.ui.StatisticsButton = class extends shaka.ui.Element {
       return this.currentStats_[name] + ' (stalls)';
     };
 
+    const parseErrors = (name) => {
+      return this.currentStats_[name] + ' (errors)';
+    };
+
+    const parsePeriods = (name) => {
+      return this.currentStats_[name] + ' (periods)';
+    };
+
+    const parseBytes = (name) => {
+      const bytes = parseInt(this.currentStats_[name], 10);
+      if (bytes > 1e6) {
+        return (bytes / 1e6).toFixed(2) + 'MB';
+      } else if (bytes > 1e3) {
+        return (bytes / 1e3).toFixed(2) + 'KB';
+      } else {
+        return bytes + 'B';
+      }
+    };
+
     /** @private {!Object.<string, function(string):string>} */
     this.parseFrom_ = {
       'width': parsePx,
@@ -138,6 +157,11 @@ shaka.ui.StatisticsButton = class extends shaka.ui.Element {
       'droppedFrames': parseFrames,
       'stallsDetected': parseStalls,
       'gapsJumped': parseGaps,
+      'manifestSizeBytes': parseBytes,
+      'bytesDownloaded': parseBytes,
+      'nonFatalErrorCount': parseErrors,
+      'manifestPeriodCount': parsePeriods,
+      'manifestGapCount': parseGaps,
     };
 
     /** @private {shaka.util.Timer} */

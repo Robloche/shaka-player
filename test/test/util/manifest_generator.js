@@ -103,6 +103,14 @@ shaka.test.ManifestGenerator.Manifest = class {
     this.type = 'UNKNOWN';
     /** @type {?shaka.extern.ServiceDescription} */
     this.serviceDescription = null;
+    /** @type {?string} */
+    this.nextUrl = null;
+    /** @type {number} */
+    this.periodCount = 1;
+    /** @type {number} */
+    this.gapCount = 0;
+    /** @type {boolean} */
+    this.isLowLatency = false;
 
 
     /** @type {shaka.extern.Manifest} */
@@ -391,6 +399,8 @@ shaka.test.ManifestGenerator.DrmInfo = class {
     /** @type {string} */
     this.keySystem = keySystem;
     /** @type {string} */
+    this.encryptionScheme = '';
+    /** @type {string} */
     this.licenseServerUri = '';
     /** @type {boolean} */
     this.distinctiveIdentifierRequired = false;
@@ -410,6 +420,8 @@ shaka.test.ManifestGenerator.DrmInfo = class {
     this.sessionType = '';
     /** @type {string} */
     this.serverCertificateUri = '';
+    /** @type {(Set.<string>|undefined)} */
+    this.keySystemUris;
 
     /** @type {shaka.extern.DrmInfo} */
     const foo = this;
@@ -461,6 +473,16 @@ shaka.test.ManifestGenerator.DrmInfo = class {
     const buffer = shaka.util.Uint8ArrayUtils.fromBase64(base64);
     this.initData.push({initData: buffer, initDataType: 'keyids'});
   }
+
+  /**
+   * Adds a new keySystemUris to the current DRM info.
+   *
+   *
+   * @param {Set.<string>} keySystemUris
+   */
+  addKeySystemUris(keySystemUris) {
+    this.keySystemUris = keySystemUris;
+  }
 };
 
 shaka.test.ManifestGenerator.Stream = class {
@@ -493,25 +515,26 @@ shaka.test.ManifestGenerator.Stream = class {
       this.id = id;
     }
 
-    if (!isPartial) {
-      let defaultMimeType = 'text/plain';
-      let defaultCodecs = '';
-      if (type == ContentType.AUDIO) {
-        defaultMimeType = 'audio/mp4';
-        defaultCodecs = 'mp4a.40.2';
-      } else if (type == ContentType.VIDEO) {
-        defaultMimeType = 'video/mp4';
-        defaultCodecs = 'avc1.4d401f';
-      } else if (type == ContentType.TEXT) {
-        defaultMimeType = 'text/vtt';
-      }
+    let defaultMimeType = 'text/plain';
+    let defaultCodecs = '';
+    if (type == ContentType.AUDIO) {
+      defaultMimeType = 'audio/mp4';
+      defaultCodecs = 'mp4a.40.2';
+    } else if (type == ContentType.VIDEO) {
+      defaultMimeType = 'video/mp4';
+      defaultCodecs = 'avc1.4d401f';
+    } else if (type == ContentType.TEXT) {
+      defaultMimeType = 'text/vtt';
+    }
 
+    if (!isPartial) {
       const create =
           jasmine.createSpy('createSegmentIndex').and.callFake(() => {
             return Promise.resolve();
           });
       const shaka_ = manifest ? manifest.shaka_ : shaka;
-      const segmentIndex = new shaka_.media.SegmentIndex([]);
+      const segmentIndex = shaka_.media.SegmentIndex.forSingleSegment(
+          /* startTime= */ 0, /* duration= */ 10, ['testUri']);
 
       /** @type {?string} */
       this.originalId = null;
@@ -570,6 +593,8 @@ shaka.test.ManifestGenerator.Stream = class {
       /** @type {(string|undefined)} */
       this.hdr = undefined;
       /** @type {(string|undefined)} */
+      this.colorGamut = undefined;
+      /** @type {(string|undefined)} */
       this.videoLayout = undefined;
       /** @type {(string|undefined)} */
       this.tilesLayout = undefined;
@@ -580,6 +605,9 @@ shaka.test.ManifestGenerator.Stream = class {
       /** @type {boolean} */
       this.fastSwitching = false;
     }
+    /** @type {!Set.<string>} */
+    this.fullMimeTypes = new Set([shaka.util.MimeUtils.getFullType(
+        defaultMimeType, defaultCodecs)]);
 
     /** @type {shaka.extern.Stream} */
     const foo = this;
@@ -706,6 +734,8 @@ shaka.test.ManifestGenerator.Stream = class {
   mime(mime, codecs) {
     this.mimeType = mime;
     this.codecs = codecs || '';
+    this.fullMimeTypes = new Set([shaka.util.MimeUtils.getFullType(
+        this.mimeType, this.codecs)]);
   }
 
   /**

@@ -9,8 +9,6 @@ The goals of future milestones are fluid until we begin that development cycle,
 so the exact milestone for future features is not pre-determined.
 
 Candidate features for future release cycles:
- - Official TypeScript defs, generated from source
-   https://github.com/shaka-project/shaka-player/issues/1030
  - Background fetch for offline storage
    https://github.com/shaka-project/shaka-player/issues/879
  - A method to stitch together clips
@@ -19,14 +17,32 @@ Candidate features for future release cycles:
    https://github.com/shaka-project/shaka-player/issues/898
  - Smaller, more modular binary
 
-v5.0 - 2024 Q1
+v5.0 - 2024 Q4
+ - Conversion to Typescript
+
+v4.10 - 2024 Q3
+ - HLS support for EXT-X-DATERANGE
+   https://github.com/shaka-project/shaka-player/issues/3523
+ - HLS interstitials
+   https://github.com/shaka-project/shaka-player/issues/3364
+
+=====
+
+v4.9 - 2024 Q2
+ - DASH patch manifests
+   https://github.com/shaka-project/shaka-player/issues/2228
+ - DASH: MPD chaining
+   https://github.com/shaka-project/shaka-player/issues/3926
+ - Support CS on devices that don't support multiple media elements
+   https://github.com/shaka-project/shaka-player/issues/2792
+
+v4.8 - 2024 Q2
  - Preload API
    https://github.com/shaka-project/shaka-player/issues/880
  - AES-256 and AES-256-CTR (HLS)
    https://github.com/shaka-project/shaka-player/issues/6001
  - Detect maximum HW resolution automatically on some platforms
-
-=====
+ - UI support for VR content
 
 v4.7 - 2023 Q4
  - Common Media Server Data (CMSD)

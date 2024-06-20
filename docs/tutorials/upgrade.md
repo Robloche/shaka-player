@@ -96,16 +96,30 @@ application:
   - Configuration changes:
     - `streaming.forceTransmuxTS` has been renamed to `streaming.forceTransmux`
       (deprecated in v4.3.0)
-    - Callbacks that used to accept `Element` now accept `shaka.externs.xml.Node`:
-      (`manifest.dash.manifestPreprocessor` and `manifest.mss.manifestPreprocessor`).
-      `getAttribute()` and `textContent` results must now be decoded if they might contain
-      escape sequences. You can use `shaka.util.StringUtils.htmlUnescape` for this purpose.
+    - `manifest.dash.manifestPreprocessor` and `manifest.mss.manifestPreprocessor`
+      have been replaced with `manifest.dash.manifestPreprocessorTXml` and
+      `manifest.mss.manifestPreprocessorTXml` callbacks. This new callbacks now
+      accept `shaka.externs.xml.Node`. `getAttribute()` and `textContent` results
+      must now be decoded if they might contain escape sequences. You can use
+      `shaka.util.StringUtils.htmlUnescape` for this purpose.
     - `streaming.useNativeHlsOnSafari` has removed. Now we have another config to do the same for FairPlay `streaming.useNativeHlsForFairPlay` or for HLS (any browser) `streaming.preferNativeHls`.
     - `mediaSource.sourceBufferExtraFeatures` has been replaced with `mediaSource.addExtraFeaturesToSourceBuffer` callback.
+    - `streaming.liveSyncMinLatency` and `streaming.liveSyncMaxLatency` have
+      been removed in favor of `streaming.liveSync.targetLatency`. (deprecated
+      in v4.10.0)
+    - The following options on `streaming` have been removed: `liveSync`,
+      `liveSyncTargetLatency`, `liveSyncTargetLatencyTolerance`,
+      `liveSyncPlaybackRate`, `liveSyncMinPlaybackRate`, `liveSyncPanicMode`
+      `liveSyncPanicThreshold`. `streaming.liveSync` is now an options object
+      with the relevant options: `enabled`, `targetLatency`,
+      `targetLatencyTolerance`, `maxPlaybackRate`, `minPlaybackRate`, `panicMode`
+      `panicThreshold`. (deprecated in v4.10.0)
 
   - Plugin changes:
+    - `TextDisplayer` plugins must implement the `configure()` method.
+    - `TextParser` plugins must implement the `setManifestType()` and `setSequenceMode()` methods.
     - `Transmuxer` plugins now has three new parameters in `transmux()` method.
 
   - Player API Changes:
     - The constructor no longer takes `mediaElement` as a parameter; use the `attach` method to attach to a media element instead. (Deprecated in v4.6)
-    - The `TimelineRegionInfo.eventElement` property is now a type of `shaka.externs.xml.Node` instead of `Element`
+    - The `TimelineRegionInfo.eventElement` has been replaced with `TimelineRegionInfo.eventNode` property, the new property type is `shaka.externs.xml.Node` instead of `Element`

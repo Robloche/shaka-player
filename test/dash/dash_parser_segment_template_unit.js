@@ -51,6 +51,8 @@ describe('DashParser SegmentTemplate', () => {
       newDrmInfo: (stream) => {},
       onManifestUpdated: () => {},
       getBandwidthEstimate: () => 1e6,
+      onMetadata: () => {},
+      disableStream: (stream) => {},
     };
   });
 
@@ -790,6 +792,19 @@ describe('DashParser SegmentTemplate', () => {
         expect(index.find(newStart)).toBe(10);
         expect(index.find(newEnd - 1.0)).toBe(19);
       });
+
+      it('appends new timeline to empty one', async () => {
+        const info = makeTemplateInfo([]);
+        const index = await makeTimelineSegmentIndex(info, false);
+
+        const newRanges = makeRanges(0, 2.0, 10);
+        const newTemplateInfo = makeTemplateInfo(newRanges);
+
+        const newEnd = newRanges[newRanges.length - 1].end;
+        index.appendTemplateInfo(newTemplateInfo, /* periodStart= */ 0, newEnd);
+        expect(index.find(0)).toBe(0);
+        expect(index.find(newEnd - 1.0)).toBe(9);
+      });
     });
 
     describe('evict', () => {
@@ -814,8 +829,10 @@ describe('DashParser SegmentTemplate', () => {
    */
   async function makeTimelineSegmentIndex(info, delayPeriodEnd = true,
       shouldFit = false) {
+    const isTimeline = info.timeline.length > 0;
     // Period end may be a bit after the last timeline entry
-    let periodEnd = info.timeline[info.timeline.length - 1].end;
+    let periodEnd = isTimeline ?
+      info.timeline[info.timeline.length - 1].end : 0;
     if (delayPeriodEnd) {
       periodEnd += 1.0;
     }
@@ -824,7 +841,7 @@ describe('DashParser SegmentTemplate', () => {
       '<SegmentTemplate startNumber="0" duration="10"',
       '    media="$Number$-$Time$-$Bandwidth$.mp4">',
       '  <SegmentTimeline>',
-      '    <S t="0" d="15" r="2" />',
+      isTimeline ? '    <S t="0" d="15" r="2" />' : '',
       '  </SegmentTimeline>',
       '</SegmentTemplate>',
     ], /* duration= */ 45);
@@ -841,7 +858,7 @@ describe('DashParser SegmentTemplate', () => {
     /** @type {?} */
     const index = stream.segmentIndex;
     index.release();
-    index.appendTemplateInfo(info, info.timeline[0].start,
+    index.appendTemplateInfo(info, isTimeline ? info.timeline[0].start : 0,
         periodEnd, shouldFit);
 
     return index;
@@ -906,5 +923,7 @@ function makeTemplateInfo(timeline) {
     'timeline': timeline,
     'mediaTemplate': 'master_540_2997_$Number%09d$.cmfv',
     'indexTemplate': null,
+    'mimeType': 'video/mp4',
+    'codecs': 'avc1.42E01E',
   };
 }

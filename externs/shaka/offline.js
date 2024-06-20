@@ -122,6 +122,7 @@ shaka.extern.ManifestDB;
  *   frameRate: (number|undefined),
  *   pixelAspectRatio: (string|undefined),
  *   hdr: (string|undefined),
+ *   colorGamut: (string|undefined),
  *   videoLayout: (string|undefined),
  *   kind: (string|undefined),
  *   language: string,
@@ -166,6 +167,8 @@ shaka.extern.ManifestDB;
  *   The Stream's pixel aspect ratio
  * @property {(string|undefined)} hdr
  *   The Stream's HDR info
+ * @property {(string|undefined)} colorGamut
+ *   The Stream's color gamut info
  * @property {(string|undefined)} videoLayout
  *   The Stream's video layout info.
  * @property {(string|undefined)} kind
@@ -230,7 +233,9 @@ shaka.extern.StreamDB;
  *   tilesLayout: ?string,
  *   pendingSegmentRefId: (string|undefined),
  *   pendingInitSegmentRefId: (string|undefined),
- *   dataKey: number
+ *   dataKey: number,
+ *   mimeType: ?string,
+ *   codecs: ?string
  * }}
  *
  * @property {?number} initSegmentKey
@@ -263,6 +268,10 @@ shaka.extern.StreamDB;
  *   downloaded.
  * @property {number} dataKey
  *   The key to the data in storage.
+ * @property {?string} mimeType
+ *   The mimeType of the segment.
+ * @property {?string} codecs
+ *   The codecs of the segment.
  */
 shaka.extern.SegmentDB;
 

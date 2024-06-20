@@ -47,6 +47,9 @@ shaka.test.FakeNetworkingEngine = class {
     this.responseFilter_ = null;
 
     /** @type {!jasmine.Spy} */
+    this.setForceHTTP = jasmine.createSpy('setForceHTTP').and.stub();
+
+    /** @type {!jasmine.Spy} */
     this.setForceHTTPS = jasmine.createSpy('setForceHTTPS').and.stub();
 
     /** @private {number} */
@@ -139,6 +142,17 @@ shaka.test.FakeNetworkingEngine = class {
     };
 
     return new shaka.util.AbortableOperation(asyncOp(), abortOp);
+  }
+
+  /**
+   * @param {!shaka.net.NetworkingEngine} other
+   * @override
+   */
+  copyFiltersInto(other) {
+    if (this.responseFilter_) {
+      other.registerResponseFilter(this.responseFilter_);
+    }
+    // FakeNetworkingEngine does not have request filters.
   }
 
   /**

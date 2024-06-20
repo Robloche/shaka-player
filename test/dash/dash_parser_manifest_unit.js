@@ -56,6 +56,8 @@ describe('DashParser Manifest', () => {
       newDrmInfo: (stream) => {},
       onManifestUpdated: () => {},
       getBandwidthEstimate: () => 1e6,
+      onMetadata: () => {},
+      disableStream: (stream) => {},
     };
   });
 
@@ -1840,7 +1842,7 @@ describe('DashParser Manifest', () => {
     expect(manifest.presentationTimeline).toBeTruthy();
   });
 
-  it('Invokes manifestPreprocessor in config', async () => {
+  it('Invokes manifestPreprocessorTXml in config', async () => {
     const manifestText = [
       '<MPD minBufferTime="PT75S">',
       '  <Period id="1" duration="PT30S">',
@@ -1867,7 +1869,7 @@ describe('DashParser Manifest', () => {
 
     fakeNetEngine.setResponseText('dummy://foo', manifestText);
     const config = shaka.util.PlayerConfiguration.createDefault().manifest;
-    config.dash.manifestPreprocessor = (mpd) => {
+    config.dash.manifestPreprocessorTXml = (mpd) => {
       /** @type {shaka.extern.xml.Node} */
       const manifest = /** @type {shaka.extern.xml.Node} */ (
         /** @type {shaka.extern.xml.Node} */(mpd).children[0]);
@@ -2146,6 +2148,8 @@ describe('DashParser Manifest', () => {
     /** @type {shaka.extern.Manifest} */
     const manifest = await parser.start('dummy://foo', playerInterface);
     expect(manifest.variants.length).toBe(1);
+    const stream = manifest.variants[0].video;
+    expect(stream.colorGamut).toBe('rec2020');
   });
 
   it('supports HDR signaling via EssentialProperty', async () => {
@@ -2612,7 +2616,7 @@ describe('DashParser Manifest', () => {
         '<MPD minBufferTime="PT75S" type="dynamic"',
         '     availabilityStartTime="1970-01-01T00:00:00Z">',
         '  <ServiceDescription id="0">',
-        '    <Latency max="2000" min="1000" referenceId="0" target="4000" />',
+        '    <Latency max="4000" min="1000" referenceId="0" target="2000" />',
         '    <PlaybackRate max="1.10" min="0.95" />',
         '  </ServiceDescription>',
         '</MPD>',
@@ -2623,11 +2627,52 @@ describe('DashParser Manifest', () => {
       /** @type {shaka.extern.Manifest} */
       const manifest = await parser.start('dummy://foo', playerInterface);
 
-      expect(manifest.serviceDescription.maxLatency).toBe(2);
+      expect(manifest.serviceDescription.targetLatency).toBe(2);
+      expect(manifest.serviceDescription.maxLatency).toBe(4);
       expect(manifest.serviceDescription.maxPlaybackRate).toBe(1.1);
       expect(manifest.serviceDescription.minLatency).toBe(1);
       expect(manifest.serviceDescription.minPlaybackRate).toBe(0.95);
     });
+
+    it('and excludes missing attributes', async () => {
+      const source = [
+        '<MPD minBufferTime="PT75S" type="dynamic"',
+        '     availabilityStartTime="1970-01-01T00:00:00Z">',
+        '  <ServiceDescription id="0">',
+        '    <Latency referenceId="0" target="2000" />',
+        '    <PlaybackRate max="1.10" min="0.95" />',
+        '  </ServiceDescription>',
+        '</MPD>',
+      ].join('\n');
+
+      fakeNetEngine.setResponseText('dummy://foo', source);
+
+      /** @type {shaka.extern.Manifest} */
+      const manifest = await parser.start('dummy://foo', playerInterface);
+
+      expect(manifest.serviceDescription.targetLatency).toBe(2);
+      expect(manifest.serviceDescription.maxLatency).toBeUndefined();
+      expect(manifest.serviceDescription.maxPlaybackRate).toBe(1.1);
+      expect(manifest.serviceDescription.minLatency).toBeUndefined();
+      expect(manifest.serviceDescription.minPlaybackRate).toBe(0.95);
+    });
+  });
+
+  it('parses urn:mpeg:dash:chaining:2016', async () => {
+    const source = [
+      '<MPD minBufferTime="PT75S" type="dynamic"',
+      '     availabilityStartTime="1970-01-01T00:00:00Z">',
+      '  <SupplementalProperty schemeIdUri="urn:mpeg:dash:chaining:2016"',
+      '    value="https://nextUrl" />',
+      '</MPD>',
+    ].join('\n');
+
+    fakeNetEngine.setResponseText('dummy://foo', source);
+
+    /** @type {shaka.extern.Manifest} */
+    const manifest = await parser.start('dummy://foo', playerInterface);
+
+    expect(manifest.nextUrl).toBe('https://nextUrl');
   });
 
   it('parses urn:mpeg:dash:ssr:2023', async () => { // eslint-disable-line max-len
@@ -2694,7 +2739,7 @@ describe('DashParser Manifest', () => {
   });
 
   describe('parses partial segments correctly', () => {
-    it('whitout cadence', async () => {
+    it('without cadence', async () => {
       const manifestText = [
         '<MPD minBufferTime="PT75S">',
         '  <Period id="1" duration="PT30S">',
@@ -3118,5 +3163,31 @@ describe('DashParser Manifest', () => {
 
       expect(audioUri0).toBe('http://example.foo/r0/1.mp4');
     });
+  });
+
+  it('counts gaps', async () => {
+    const manifestText = [
+      '<MPD type="static">',
+      '  <Period id="1" duration="PT30S">',
+      '    <AdaptationSet id="2" mimeType="video/mp4">',
+      '      <Representation id="video" bandwidth="1">',
+      '        <SegmentBase indexRange="100-200" />',
+      '      </Representation>',
+      '    </AdaptationSet>',
+      '  </Period>',
+      '  <Period id="2" start="PT31S" duration="PT30S">',
+      '    <AdaptationSet id="2" mimeType="video/mp4">',
+      '      <Representation id="video" bandwidth="1">',
+      '        <SegmentBase indexRange="100-200" />',
+      '      </Representation>',
+      '    </AdaptationSet>',
+      '  </Period>',
+      '</MPD>',
+    ].join('\n');
+
+    fakeNetEngine.setResponseText('dummy://foo', manifestText);
+
+    const manifest = await parser.start('dummy://foo', playerInterface);
+    expect(manifest.gapCount).toBe(1);
   });
 });

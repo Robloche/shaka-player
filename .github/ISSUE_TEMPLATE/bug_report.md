@@ -58,8 +58,9 @@ assignees: ''
 **What configuration are you using?  What is the output of `player.getConfiguration()`?**
 <!-- NOTE:
   You can censor URLs to keep them private, but include them in the email.  You
-  can also use JSON.stringify(obj, null, 2) to print nicely on platforms that
-  don't print objects well in the console.  DON'T SEND '[object Object]'!
+  can also use JSON.stringify(player.getNonDefaultConfiguration(), null, 2) to
+  print nicely on platforms that don't print objects well in the console.
+  DON'T SEND '[object Object]'!
 -->
 
 
@@ -73,3 +74,6 @@ assignees: ''
 **What actually happened?**
 <!-- A clear and concise description of what the bug is -->
 <!-- If applicable, you may add screenshots to help explain your problem. -->
+
+
+**Are you planning send a PR to fix it?**

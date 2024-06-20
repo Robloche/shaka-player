@@ -106,6 +106,9 @@ DASH features supported:
  - WebVTT and TTML
  - CEA-608/708 captions
  - Multi-codec variants (on platforms with changeType support)
+ - MPD chaining
+ - MPD Patch updates for SegmentTemplate with $Number$, SegmentTimeline with
+   $Number$ and SegmentTimeline with $Time$
 
 DASH features **not** supported:
  - Xlink with actuate=onRequest
@@ -115,6 +118,8 @@ DASH features **not** supported:
    bitrates
  - Timescales so large that timestamps cannot be represented as integers in
    JavaScript (2^53): https://github.com/shaka-project/shaka-player/issues/1667
+ - Modifying elements with an @schemeIdUri attribute via MPD Patch
+ - Xlink dereferencing with MPD Patch
 
 
 ## HLS features
@@ -136,6 +141,10 @@ HLS features supported:
  - Raw AAC, MP3, AC-3 and EC-3 (without an MP4 container)
  - I-frame-only playlists with mjpg codec for thumbnails
  - #EXT-X-IMAGE-STREAM-INF for thumbnails
+ - Interstitials
+
+HLS features **not** supported:
+ - X-SNAP attribute in interstitials
 
 
 ## MPEG-5 Part2 LCEVC Support
@@ -280,6 +289,7 @@ Shaka Player supports:
   - EC-3 in MPEG-2 TS to EC-3 in MP4
   - MP3 in MPEG-2 TS to MP3 in MP4
   - MP3 in MPEG-2 TS to raw MP3
+  - Opus in MPEG-2 TS to MP3 in MP4
   - H.264 in MPEG-2 TS to H.264 in MP4
   - H.265 in MPEG-2 TS to H.265 in MP4
   - Muxed content in MPEG-2 TS with the previous codecs
@@ -314,6 +324,24 @@ Content Steering features supported:
 
 Content Steering features **not** supported:
 - PATHWAY-CLONES other replacements than HOST.
+
+
+## VR support
+Shaka Player supports VR when:
+- Content is automatically treated as VR if it fits the following criteria:
+  - HLS or DASH manifest
+  - fMP4 segments
+  - Init segment contains `prji` and `hfov` boxes
+- Or, if it is manually enabled via the UI config.
+
+VR modes supported:
+- Equirectangular projection with 360 degrees of horizontal field of view.
+- Cubemap projection with 360 degrees of horizontal field of view.
+
+
+NOTES:
+  - VR is only supported for clear streams or HLS-AES stream. DRM prevents
+    access to the video pixels for transformation.
 
 
 ## Documentation & Important Links ##

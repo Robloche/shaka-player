@@ -69,7 +69,11 @@ describe('StreamingEngine', () => {
 
     mediaSourceEngine = new shaka.media.MediaSourceEngine(
         video,
-        new shaka.test.FakeTextDisplayer());
+        new shaka.test.FakeTextDisplayer(),
+        {
+          getKeySystem: () => null,
+          onMetadata: () => {},
+        });
     const mediaSourceConfig =
         shaka.util.PlayerConfiguration.createDefault().mediaSource;
     mediaSourceEngine.configure(mediaSourceConfig);
@@ -257,6 +261,7 @@ describe('StreamingEngine', () => {
     const playerInterface = {
       getPresentationTime: () => playhead.getTime(),
       getBandwidthEstimate: () => 1e6,
+      getPlaybackRate: () => video.playbackRate,
       mediaSourceEngine: mediaSourceEngine,
       netEngine: /** @type {!shaka.net.NetworkingEngine} */(netEngine),
       onError: Util.spyFunc(onError),
@@ -572,7 +577,6 @@ describe('StreamingEngine', () => {
               /* timestampOffset= */ gapAtStart,
               /* appendWindowStart= */ 0,
               /* appendWindowEnd= */ Infinity));
-
           i++;
           time = end;
         }
@@ -601,6 +605,10 @@ describe('StreamingEngine', () => {
         ignoreManifestTimestampsInSegmentsMode: false,
         type: 'UNKNOWN',
         serviceDescription: null,
+        nextUrl: null,
+        periodCount: 1,
+        gapCount: 0,
+        isLowLatency: false,
         variants: [{
           id: 1,
           video: {

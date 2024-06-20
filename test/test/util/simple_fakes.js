@@ -85,6 +85,9 @@ shaka.test.FakeStreamingEngine = class {
     this.configure = jasmine.createSpy('configure');
 
     /** @type {!jasmine.Spy} */
+    this.applyPlayRange = jasmine.createSpy('applyPlayRange');
+
+    /** @type {!jasmine.Spy} */
     this.seeked = jasmine.createSpy('seeked');
 
     /** @type {!jasmine.Spy} */
@@ -469,6 +472,9 @@ shaka.test.FakeSegmentIndex = class {
     this.updateEvery = jasmine.createSpy('updateEvery');
 
     /** @type {!jasmine.Spy} */
+    this.isEmpty = jasmine.createSpy('updateEvery').and.returnValue(false);
+
+    /** @type {!jasmine.Spy} */
     this[Symbol.iterator] = jasmine.createSpy('Symbol.iterator')
         .and.callFake(() => this.getIteratorForTime(0));
 
@@ -498,6 +504,8 @@ shaka.test.FakeSegmentIndex = class {
               nextPosition = this.find(time);
               return this.get(nextPosition++);
             },
+
+            setReverse: () => {},
           };
         });
   }

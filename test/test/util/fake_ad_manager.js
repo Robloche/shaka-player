@@ -26,6 +26,9 @@ shaka.test.FakeAdManager = class extends shaka.util.FakeEventTarget {
   configure(config) {}
 
   /** @override */
+  initInterstitial(adContainer, basePlayer, baseVideo) {}
+
+  /** @override */
   initClientSide(adContainer, video, adsRenderingSettings) {}
 
   /** @override */
@@ -61,16 +64,12 @@ shaka.test.FakeAdManager = class extends shaka.util.FakeEventTarget {
   /** @override */
   replaceServerSideAdTagParameters(adTagParameters) {}
 
-  /**
-   * @override
-   */
+  /** @override */
   getServerSideCuePoints() {
     return [];
   }
 
-  /**
-   * @override
-   */
+  /** @override */
   getCuePoints() {
     return [];
   }
@@ -80,31 +79,26 @@ shaka.test.FakeAdManager = class extends shaka.util.FakeEventTarget {
     return this.stats_;
   }
 
-  /**
-   * @override
-   */
+  /** @override */
   onManifestUpdated(isLive) {}
 
-  /**
-   * @override
-   */
+  /** @override */
   onDashTimedMetadata(region) {}
 
-  /**
-   * @override
-   */
+  /** @override */
   onHlsTimedMetadata(metadata) {}
 
-  /**
-   * @override
-   */
+  /** @override */
   onCueMetadataChange(data) {}
+
+  /** @override */
+  onInterstitialMetadata(basePlayer, baseVideo, interstitial) {}
 
   /**
    * @param {!shaka.test.FakeAd} ad
    */
   startAd(ad) {
-    const event = new shaka.util.FakeEvent(shaka.ads.AdManager.AD_STARTED,
+    const event = new shaka.util.FakeEvent(shaka.ads.Utils.AD_STARTED,
         (new Map()).set('ad', ad));
 
     this.dispatchEvent(event);
@@ -112,14 +106,14 @@ shaka.test.FakeAdManager = class extends shaka.util.FakeEventTarget {
 
   /** @public */
   finishAd() {
-    const event = new shaka.util.FakeEvent(shaka.ads.AdManager.AD_STOPPED);
+    const event = new shaka.util.FakeEvent(shaka.ads.Utils.AD_STOPPED);
     this.dispatchEvent(event);
   }
 
   /** @public */
   changeSkipState() {
     const event =
-        new shaka.util.FakeEvent(shaka.ads.AdManager.AD_SKIP_STATE_CHANGED);
+        new shaka.util.FakeEvent(shaka.ads.Utils.AD_SKIP_STATE_CHANGED);
     this.dispatchEvent(event);
   }
 };

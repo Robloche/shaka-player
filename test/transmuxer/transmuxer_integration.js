@@ -22,61 +22,6 @@ describe('Transmuxer Player', () => {
   /** @type {!shaka.test.Waiter} */
   let waiter;
 
-  function isH265Supported() {
-    if (!MediaSource.isTypeSupported('video/mp4; codecs="hvc1.2.4.L123.B0"')) {
-      return false;
-    }
-    // As of Chrome 122, Chrome on Windows is still incorrectly reporting H.265
-    // support.  Revisit this exclusion with a maximum chromeVersion if Chrome
-    // ever fixes it.
-    // We don't have a solid bug link for this issue.  It's unclear if this is
-    // specific to GitHub CI systems, which may be missing some codecs.
-    const chromeVersion = shaka.util.Platform.chromeVersion();
-    if (shaka.util.Platform.isWindows() && chromeVersion) {
-      return false;
-    }
-    // https://bugs.chromium.org/p/chromium/issues/detail?id=1450313
-    return true;
-  }
-
-  function isAc3Supported() {
-    if (!MediaSource.isTypeSupported('audio/mp4; codecs="ac-3"')) {
-      return false;
-    }
-    // AC3 is flaky in some Tizen devices, so we need omit it for now.
-    if (shaka.util.Platform.isTizen()) {
-      return false;
-    }
-    // It seems that AC3 on Edge Windows from github actions is not working
-    // (in the lab AC3 is working). The AC3 detection is currently hard-coded
-    // to true, which leads to a failure in GitHub's environment.
-    // We must enable this, once it is resolved:
-    // https://bugs.chromium.org/p/chromium/issues/detail?id=1450313
-    if (shaka.util.Platform.isWindows() && shaka.util.Platform.isEdge()) {
-      return false;
-    }
-    return true;
-  }
-
-  function isEc3Supported() {
-    if (!MediaSource.isTypeSupported('audio/mp4; codecs="ec-3"')) {
-      return false;
-    }
-    // EC3 is flaky in some Tizen devices, so we need omit it for now.
-    if (shaka.util.Platform.isTizen()) {
-      return false;
-    }
-    // It seems that EC3 on Edge Windows from github actions is not working
-    // (in the lab EC3 is working). The EC3 detection is currently hard-coded
-    // to true, which leads to a failure in GitHub's environment.
-    // We must enable this, once it is resolved:
-    // https://bugs.chromium.org/p/chromium/issues/detail?id=1450313
-    if (shaka.util.Platform.isWindows() && shaka.util.Platform.isEdge()) {
-      return false;
-    }
-    return true;
-  }
-
   beforeAll(async () => {
     video = shaka.test.UiUtils.createVideoElement();
     document.body.appendChild(video);
@@ -90,6 +35,7 @@ describe('Transmuxer Player', () => {
     await player.attach(video);
 
     player.configure('mediaSource.forceTransmux', true);
+    player.configure('streaming.useNativeHlsOnSafari', false);
 
     // Disable stall detection, which can interfere with playback tests.
     player.configure('streaming.stallEnabled', false);
@@ -131,7 +77,7 @@ describe('Transmuxer Player', () => {
     });
 
     it('raw MP3', async () => {
-      if (!MediaSource.isTypeSupported('audio/mp4; codecs="mp3"')) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="mp3"')) {
         pending('Codec MP3 in MP4 is not supported by the platform.');
       }
       await player.load('/base/test/test/assets/hls-raw-mp3/playlist.m3u8');
@@ -150,7 +96,7 @@ describe('Transmuxer Player', () => {
     });
 
     it('raw AC3', async () => {
-      if (!isAc3Supported()) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="ac-3"')) {
         pending('Codec AC-3 is not supported by the platform.');
       }
 
@@ -170,7 +116,7 @@ describe('Transmuxer Player', () => {
     });
 
     it('raw EC3', async () => {
-      if (!isEc3Supported()) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="ec-3"')) {
         pending('Codec EC-3 is not supported by the platform.');
       }
 
@@ -222,8 +168,8 @@ describe('Transmuxer Player', () => {
     });
 
     it('MP3 in TS', async () => {
-      if (!MediaSource.isTypeSupported('audio/mp4; codecs="mp3"') &&
-        !MediaSource.isTypeSupported('audio/mpeg')) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="mp3"') &&
+        !await Util.isTypeSupported('audio/mpeg')) {
         pending('Codec MP3 is not supported by the platform.');
       }
       // This tests is flaky in some Tizen devices, so we need omit it for now.
@@ -246,7 +192,7 @@ describe('Transmuxer Player', () => {
     });
 
     it('AC3 in TS', async () => {
-      if (!isAc3Supported()) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="ac-3"')) {
         pending('Codec AC-3 is not supported by the platform.');
       }
 
@@ -266,7 +212,7 @@ describe('Transmuxer Player', () => {
     });
 
     it('EC3 in TS', async () => {
-      if (!isEc3Supported()) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="ec-3"')) {
         pending('Codec EC-3 is not supported by the platform.');
       }
 
@@ -304,7 +250,8 @@ describe('Transmuxer Player', () => {
     });
 
     it('H.265 in TS', async () => {
-      if (!isH265Supported()) {
+      if (!await Util.isTypeSupported('video/mp4; codecs="hvc1.2.4.L123.B0"',
+          /* width= */ 640, /* height= */ 360)) {
         pending('Codec H.265 is not supported by the platform.');
       }
       await player.load('/base/test/test/assets/hls-ts-h265/hevc.m3u8');
@@ -364,9 +311,18 @@ describe('Transmuxer Player', () => {
     });
 
     it('H.265+AAC in TS', async () => {
-      if (!isH265Supported()) {
+      if (!await Util.isTypeSupported('video/mp4; codecs="hvc1.2.4.L123.B0"',
+          /* width= */ 720, /* height= */ 1280)) {
         pending('Codec H.265 is not supported by the platform.');
       }
+      if (shaka.util.Platform.isChromecast()) {
+        // FIXME: Test disabled on Chromecast.  Now that our test environment
+        // can do full support checks on Chromecast, including resolution, this
+        // 720x1280 vertical video is over the limit for a 1080p screen.  This
+        // fails on any Chromecast with H.265 support.
+        pending('Disabled on Chromecast.');
+      }
+
       // eslint-disable-next-line max-len
       await player.load('/base/test/test/assets/hls-ts-muxed-aac-h265/media.m3u8');
       await video.play();
@@ -384,7 +340,7 @@ describe('Transmuxer Player', () => {
     });
 
     it('H.264+MP3 in TS', async () => {
-      if (!MediaSource.isTypeSupported('audio/mp4; codecs="mp3"')) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="mp3"')) {
         pending('Codec MP3 in MP4 is not supported by the platform.');
       }
 
@@ -405,8 +361,11 @@ describe('Transmuxer Player', () => {
     });
 
     it('H.264+AC3 in TS', async () => {
-      if (!isAc3Supported()) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="ac-3"')) {
         pending('Codec AC-3 is not supported by the platform.');
+      }
+      if (shaka.util.Platform.isTizen()) {
+        pending('Muxed AC-3 codec is not supported by the platform.');
       }
 
       // eslint-disable-next-line max-len
@@ -426,12 +385,36 @@ describe('Transmuxer Player', () => {
     });
 
     it('H.264+EC3 in TS', async () => {
-      if (!isEc3Supported()) {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="ec-3"')) {
         pending('Codec EC-3 is not supported by the platform.');
+      }
+      if (shaka.util.Platform.isTizen()) {
+        pending('Muxed AC-3 codec is not supported by the platform.');
       }
 
       // eslint-disable-next-line max-len
       await player.load('/base/test/test/assets/hls-ts-muxed-ec3-h264/prog_index.m3u8');
+      await video.play();
+      expect(player.isLive()).toBe(false);
+
+      // Wait for the video to start playback.  If it takes longer than 10
+      // seconds, fail the test.
+      await waiter.waitForMovementOrFailOnTimeout(video, 10);
+
+      // Play for 15 seconds, but stop early if the video ends.  If it takes
+      // longer than 45 seconds, fail the test.
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 15, 45);
+
+      await player.unload();
+    });
+
+    it('H.264+Opus in TS', async () => {
+      if (!await Util.isTypeSupported('audio/mp4; codecs="opus"')) {
+        pending('Codec opus is not supported by the platform.');
+      }
+
+      // eslint-disable-next-line max-len
+      await player.load('/base/test/test/assets/hls-ts-muxed-opus-h264/playlist.m3u8');
       await video.play();
       expect(player.isLive()).toBe(false);
 
